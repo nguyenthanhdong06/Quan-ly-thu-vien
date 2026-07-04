@@ -142,10 +142,22 @@ export default function App() {
   // ==========================================
   // CORE DB STATES (SYNC TO LOCAL STORAGE)
   // ==========================================
-  const [role, setRole] = useState<'student' | 'admin'>('student');
-  const [activeTab, setActiveTab] = useState<string>('home');
-  const [currentUserId, setCurrentUserId] = useState<number>(1); // Active simulated student: Nguyễn Lâm Anh
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(true); // Logged in status for active student/admin
+  const [role, setRole] = useState<'student' | 'admin'>(() => {
+    const saved = localStorage.getItem('db_role');
+    return (saved as 'student' | 'admin') || 'student';
+  });
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    const saved = localStorage.getItem('db_active_tab');
+    return saved || 'home';
+  });
+  const [currentUserId, setCurrentUserId] = useState<number>(() => {
+    const saved = localStorage.getItem('db_current_user_id');
+    return saved ? parseInt(saved, 10) : 1;
+  });
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
+    const saved = localStorage.getItem('db_is_logged_in');
+    return saved === 'true'; // Default to false so they see the gorgeous login page first
+  });
 
   const [users, setUsers] = useState<UserType[]>(() => {
     const saved = localStorage.getItem('db_users');
@@ -253,6 +265,22 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('db_badges', JSON.stringify(badges));
   }, [badges]);
+
+  useEffect(() => {
+    localStorage.setItem('db_role', role);
+  }, [role]);
+
+  useEffect(() => {
+    localStorage.setItem('db_active_tab', activeTab);
+  }, [activeTab]);
+
+  useEffect(() => {
+    localStorage.setItem('db_current_user_id', currentUserId.toString());
+  }, [currentUserId]);
+
+  useEffect(() => {
+    localStorage.setItem('db_is_logged_in', isLoggedIn ? 'true' : 'false');
+  }, [isLoggedIn]);
 
   // ==========================================
   // SUPABASE CLOUD FUNCTIONS
@@ -1050,6 +1078,244 @@ export default function App() {
   const categories = Array.from(new Set(books.map(b => b.Category)));
   const sortedLeaderboardUsers = [...users].sort((a, b) => b.Total_Points - a.Total_Points);
 
+  if (!isLoggedIn) {
+    return (
+      <div 
+        className="min-h-screen w-full flex flex-col justify-between relative bg-cover bg-center select-none overflow-y-auto"
+        style={{ 
+          backgroundImage: `url('https://images.unsplash.com/photo-1507842217343-583bb7270b66?q=80&w=1920&auto=format&fit=crop')`,
+        }}
+      >
+        {/* Dark tinted cozy glow overlay */}
+        <div className="absolute inset-0 bg-gradient-to-b from-slate-950/90 via-slate-900/80 to-slate-950/95 backdrop-blur-[6px] z-0" />
+
+        {/* Header decoration */}
+        <header className="relative z-10 max-w-7xl mx-auto w-full px-6 py-6 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-sky-500 rounded-2xl text-slate-950 font-black text-2xl tracking-wider shadow-lg shadow-sky-500/25">
+              📚
+            </div>
+            <div>
+              <h1 className="text-xl font-black tracking-tight text-white flex items-center gap-2">
+                BIBLIO-HUB 
+                <span className="text-[10px] font-extrabold bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded-lg border border-sky-500/30">v1.5</span>
+              </h1>
+              <p className="text-[10px] text-sky-400 font-extrabold uppercase tracking-widest">Hệ Thống Thư Viện Chuyên Nghiệp</p>
+            </div>
+          </div>
+          <div className="hidden md:flex items-center gap-4 text-xs font-bold text-slate-400">
+            <span className="flex items-center gap-1"><Sparkles className="w-3.5 h-3.5 text-amber-400" /> Tự động lưu tiến trình</span>
+            <span className="text-slate-700">•</span>
+            <span>Niên khóa 2026-2027</span>
+          </div>
+        </header>
+
+        {/* Main login portal container */}
+        <main className="relative z-10 flex-grow flex items-center justify-center px-4 py-8">
+          <div className="w-full max-w-md bg-slate-950/85 hover:bg-slate-950/90 border border-slate-800/80 text-white rounded-3xl p-6 md:p-8 shadow-2xl space-y-6 relative transition duration-300 shadow-sky-500/5 backdrop-blur-xl">
+            
+            {/* Top design crown decorative */}
+            <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-sky-500/10 border border-sky-500/20 text-sky-400 w-24 h-24 rounded-full flex items-center justify-center shadow-2xl backdrop-blur-md">
+              <div className="w-16 h-16 rounded-full bg-sky-500/20 border border-sky-500/30 flex items-center justify-center text-3xl shadow-inner animate-pulse">
+                📖
+              </div>
+            </div>
+
+            {/* Header info */}
+            <div className="text-center space-y-2 pt-8">
+              <h2 className="font-extrabold text-2xl text-white tracking-tight uppercase flex items-center justify-center gap-2">
+                <Sparkles className="w-5 h-5 text-amber-400 animate-pulse shrink-0" />
+                <span>Cổng đăng nhập Biblio-Hub</span>
+              </h2>
+              <p className="text-xs text-slate-400">Hãy đăng nhập để bước vào thế giới sách tri thức và tích lũy điểm thi đua!</p>
+            </div>
+
+            {/* Tab Selector */}
+            <div className="grid grid-cols-2 bg-slate-900/90 p-1.5 rounded-2xl border border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  playChimeSound('click');
+                  setLoginModalTab('student');
+                  setAuthError(false);
+                }}
+                className={`py-2.5 rounded-xl text-xs font-black tracking-wide transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer ${
+                  loginModalTab === 'student'
+                    ? 'bg-sky-500 text-slate-950 shadow-md shadow-sky-500/10'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <GraduationCap className="w-4 h-4" />
+                HỌC SINH
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  playChimeSound('click');
+                  setLoginModalTab('admin');
+                  setAuthError(false);
+                }}
+                className={`py-2.5 rounded-xl text-xs font-black tracking-wide transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer ${
+                  loginModalTab === 'admin'
+                    ? 'bg-sky-500 text-slate-950 shadow-md shadow-sky-500/10'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <Lock className="w-3.5 h-3.5" />
+                BAN GIÁM HIỆU
+              </button>
+            </div>
+
+            {/* Login Forms */}
+            {loginModalTab === 'student' ? (
+              <form onSubmit={handleStudentLoginSubmit} className="space-y-4">
+                <div className="space-y-4 text-xs text-left">
+                  <div>
+                    <label className="block text-slate-300 font-bold mb-1.5 flex items-center gap-1.5 text-[11px] tracking-wide uppercase">
+                      <User className="w-3.5 h-3.5 text-sky-400" />
+                      Tên đăng nhập học sinh
+                    </label>
+                    <input 
+                      type="text" 
+                      required
+                      placeholder="Nhập tên đăng nhập (VD: lamanh, minhquan...)"
+                      value={studentUsernameInput}
+                      onChange={(e) => setStudentUsernameInput(e.target.value)}
+                      className="w-full p-3 rounded-xl border border-slate-800 bg-slate-900/90 text-white font-semibold focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/15 transition-all text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-300 font-bold mb-1.5 flex items-center gap-1.5 text-[11px] tracking-wide uppercase">
+                      <Lock className="w-3.5 h-3.5 text-sky-400" />
+                      Mật khẩu học sinh
+                    </label>
+                    <input 
+                      type="password" 
+                      required
+                      placeholder="Nhập mật khẩu của em (VD: user123...)"
+                      value={studentPasswordInput}
+                      onChange={(e) => setStudentPasswordInput(e.target.value)}
+                      className="w-full p-3 rounded-xl border border-slate-800 bg-slate-900/90 text-white font-semibold focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/15 transition-all text-sm"
+                    />
+                  </div>
+
+                  {authError && (
+                    <p className="text-rose-400 font-extrabold text-[11px] text-center bg-rose-500/10 py-2 rounded-xl border border-rose-500/20 shadow-sm animate-pulse">
+                      ❌ Sai tên đăng nhập hoặc mật khẩu! Hãy kiểm tra lại em nhé.
+                    </p>
+                  )}
+
+                  {/* Quick select credential shelf */}
+                  <div className="bg-slate-900/95 p-4 rounded-2xl border border-slate-800 space-y-2.5">
+                    <div className="flex items-center gap-1.5 text-[11px] font-extrabold text-sky-400 uppercase tracking-wider">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+                      <span>Danh sách Học sinh (Chọn nhanh):</span>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto pr-1 scrollbar-thin">
+                      {users.map((usr) => (
+                        <button
+                          key={usr.User_ID}
+                          type="button"
+                          onClick={() => {
+                            setStudentUsernameInput(usr.Username || '');
+                            setStudentPasswordInput(usr.Password || 'user123');
+                            setAuthError(false);
+                            playChimeSound('click');
+                          }}
+                          className="flex items-center gap-2.5 p-2 rounded-xl bg-slate-950/80 hover:bg-slate-800 border border-slate-800/80 hover:border-sky-500/40 text-left transition duration-250 group cursor-pointer"
+                        >
+                          <img
+                            src={usr.Avatar_URL}
+                            onError={(e) => { (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/adventurer/svg?seed=${usr.Full_Name}`; }}
+                            className="w-8 h-8 rounded-full border border-slate-700 bg-slate-950 shrink-0 group-hover:scale-105 transition"
+                            alt="avatar"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[10.5px] font-extrabold text-white truncate group-hover:text-sky-300 transition">{usr.Full_Name}</p>
+                            <p className="text-[8px] text-slate-400 font-bold font-mono tracking-tight uppercase">{usr.Grade_Class} ({usr.Username})</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <button 
+                  type="submit"
+                  className="w-full bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-xs uppercase tracking-wider py-3.5 rounded-xl transition duration-300 shadow-lg shadow-sky-500/15 flex items-center justify-center gap-2 hover:scale-[1.01] cursor-pointer"
+                >
+                  <GraduationCap className="w-4 h-4 text-slate-950" />
+                  ĐĂNG NHẬP VÀO THƯ VIỆN
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleAdminAuthSubmit} className="space-y-4">
+                <div className="space-y-4 text-xs text-left">
+                  <div>
+                    <label className="block text-slate-300 font-bold mb-1.5 flex items-center gap-1.5 text-[11px] tracking-wide uppercase">
+                      <User className="w-3.5 h-3.5 text-sky-400" />
+                      Tài khoản ban giám hiệu
+                    </label>
+                    <input 
+                      type="text" 
+                      required
+                      placeholder="VD: admin..."
+                      value={adminUsername}
+                      onChange={(e) => setAdminUsername(e.target.value)}
+                      className="w-full p-3 rounded-xl border border-slate-800 bg-slate-900/90 text-white font-semibold focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/15 transition-all text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-300 font-bold mb-1.5 flex items-center gap-1.5 text-[11px] tracking-wide uppercase">
+                      <Lock className="w-3.5 h-3.5 text-sky-400" />
+                      Mật khẩu bảo mật
+                    </label>
+                    <input 
+                      type="password" 
+                      required
+                      placeholder="Nhập mật khẩu quản trị..."
+                      value={adminPassword}
+                      onChange={(e) => setAdminPassword(e.target.value)}
+                      className="w-full p-3 rounded-xl border border-slate-800 bg-slate-900/90 text-white font-semibold focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/15 transition-all text-sm"
+                    />
+                  </div>
+
+                  {authError && (
+                    <p className="text-rose-400 font-extrabold text-[11px] text-center bg-rose-500/10 py-2 rounded-xl border border-rose-500/20 shadow-sm animate-pulse">
+                      ❌ Sai tài khoản hoặc mật khẩu Quản trị viên!
+                    </p>
+                  )}
+
+                  <div className="bg-slate-900/95 p-3.5 rounded-xl border border-slate-800 text-[10px] text-sky-400 space-y-1.5 font-mono">
+                    <span className="font-bold text-slate-300 text-[11px]">💡 Tài khoản trải nghiệm:</span>
+                    <div className="flex gap-4">
+                      <div>Tài khoản: <span className="text-white font-bold">admin</span></div>
+                      <div>Mật khẩu: <span className="text-white font-bold">admin123</span></div>
+                    </div>
+                  </div>
+                </div>
+
+                <button 
+                  type="submit"
+                  className="w-full bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-xs uppercase tracking-wider py-3.5 rounded-xl transition duration-300 shadow-lg shadow-sky-500/15 flex items-center justify-center gap-2 hover:scale-[1.01] cursor-pointer"
+                >
+                  <Lock className="w-3.5 h-3.5 text-slate-950" />
+                  ĐĂNG NHẬP BAN GIÁM HIỆU
+                </button>
+              </form>
+            )}
+          </div>
+        </main>
+
+        {/* Footer decoration */}
+        <footer className="relative z-10 w-full text-center py-6 text-[10.5px] text-slate-400 font-bold tracking-wider uppercase border-t border-slate-800/30 bg-slate-950/30 backdrop-blur-[2px]">
+          <span>© 2026 Biblio-Hub - Thư viện số thông minh phát triển bền vững</span>
+        </footer>
+      </div>
+    );
+  }
+
   return (
     <div className="overflow-x-hidden text-slate-800 bg-sky-50/40 min-h-screen flex flex-col justify-between">
       
@@ -1093,30 +1359,6 @@ export default function App() {
                  supabaseStatus === 'tables_missing' ? 'Supabase SQL Setup' : 'Supabase Error'}
               </span>
             </button>
-
-            {/* Live Role Selector Switch */}
-            <div className="bg-slate-950 p-1 rounded-2xl flex border border-slate-800">
-              <button 
-                onClick={() => handleTrySwitchRole('student')}
-                className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all duration-300 flex items-center gap-1 ${
-                  role === 'student' 
-                    ? 'bg-sky-500 text-slate-950 shadow-md' 
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                🎓 Học Sinh
-              </button>
-              <button 
-                onClick={() => handleTrySwitchRole('admin')}
-                className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all duration-300 flex items-center gap-1 ${
-                  role === 'admin' 
-                    ? 'bg-sky-500 text-slate-950 shadow-md' 
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                ⚙️ Quản Trị
-              </button>
-            </div>
 
             {/* Quick Student Badge */}
             {role === 'student' && activeUser && (
@@ -1168,7 +1410,7 @@ export default function App() {
                 
                 <button
                   onClick={handleLogout}
-                  className="bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white p-2 sm:px-3 sm:py-1.5 rounded-2xl border border-rose-500/20 hover:border-rose-500 transition duration-200 text-xs font-bold flex items-center gap-1.5 shadow-sm shadow-rose-500/5 hover:scale-[1.02]"
+                  className="bg-rose-500/10 hover:bg-rose-600 text-rose-400 hover:text-white px-3.5 py-2.5 rounded-2xl border border-rose-500/20 hover:border-rose-600 transition duration-300 text-xs font-bold flex items-center gap-2 shadow-lg shadow-rose-500/5 hover:scale-[1.02] cursor-pointer"
                   title="Đăng xuất quyền quản trị"
                 >
                   <LogOut className="w-3.5 h-3.5" />
