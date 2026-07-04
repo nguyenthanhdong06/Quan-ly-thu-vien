@@ -17,6 +17,7 @@ DROP TABLE IF EXISTS badges CASCADE;
 -- Users table
 CREATE TABLE users (
   "User_ID" INT PRIMARY KEY,
+  "Username" TEXT UNIQUE,
   "Full_Name" TEXT NOT NULL,
   "Grade_Class" TEXT NOT NULL,
   "Avatar_URL" TEXT,
@@ -91,10 +92,10 @@ ALTER TABLE badges DISABLE ROW LEVEL SECURITY;
 
 -- 4. SEED DATA
 
-INSERT INTO users ("User_ID", "Full_Name", "Grade_Class", "Avatar_URL", "Total_Points", "Password") VALUES
-(1, 'Nguyễn Lâm Anh', 'Lớp 5A', 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150', 1450, 'user123'),
-(2, 'Trần Minh Quân', 'Lớp 4B', 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150', 1100, 'user456'),
-(3, 'Lê Mỹ Huyền', 'Lớp 5C', 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150', 1980, 'user789');
+INSERT INTO users ("User_ID", "Username", "Full_Name", "Grade_Class", "Avatar_URL", "Total_Points", "Password") VALUES
+(1, 'lamanh', 'Nguyễn Lâm Anh', 'Lớp 5A', 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150', 1450, 'user123'),
+(2, 'minhquan', 'Trần Minh Quân', 'Lớp 4B', 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150', 1100, 'user456'),
+(3, 'myhuyen', 'Lê Mỹ Huyền', 'Lớp 5C', 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150', 1980, 'user789');
 
 INSERT INTO books ("Book_ID", "Title", "Author", "Cover_Image", "Category", "Target_Grade", "Book_Type", "Content_URL") VALUES
 (1, 'Dế Mèn Phiêu Lưu Ký', 'Tô Hoài', 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=400', 'Văn học Việt Nam', 'Lớp 4-5', 'Ebook', '#'),

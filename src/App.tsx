@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   BookOpen, User, Award, ShieldAlert, Sparkles, Trophy, Heart, Search, Filter, 
   Menu, X, Calendar, Activity, CheckCircle, BarChart2, Radio, Play, ChevronRight, Eye, Star,
-  TrendingUp, HelpCircle, Lock, GraduationCap, Shield
+  TrendingUp, HelpCircle, Lock, GraduationCap, Shield, Camera, Upload, LogOut
 } from 'lucide-react';
 
 import { 
@@ -145,6 +145,7 @@ export default function App() {
   const [role, setRole] = useState<'student' | 'admin'>('student');
   const [activeTab, setActiveTab] = useState<string>('home');
   const [currentUserId, setCurrentUserId] = useState<number>(1); // Active simulated student: Nguyễn Lâm Anh
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(true); // Logged in status for active student/admin
 
   const [users, setUsers] = useState<UserType[]>(() => {
     const saved = localStorage.getItem('db_users');
@@ -198,7 +199,7 @@ export default function App() {
   // Modals & overlay states
   const [modalType, setModalType] = useState<
     null | 'read_book' | 'podcast' | 'video' | 'quiz' | 'game' | 'admin_auth' | 'auth_login' | 'add_book' | 'edit_book' | 'add_student' | 'edit_student' | 'award_xp'
-  >(null);
+  >('auth_login');
   const [activeModalData, setActiveModalData] = useState<any>(null);
   
   // Custom toast messages
@@ -519,6 +520,7 @@ export default function App() {
 
     if (matchedUser) {
       setCurrentUserId(matchedUser.User_ID);
+      setIsLoggedIn(true);
       setRole('student');
       setActiveTab('home');
       setModalType(null);
@@ -539,6 +541,7 @@ export default function App() {
     e.preventDefault();
     if (adminUsername === 'admin' && adminPassword === 'admin123') {
       setRole('admin');
+      setIsLoggedIn(true);
       setActiveTab('admin-books');
       setModalType(null);
       setAuthError(false);
@@ -550,6 +553,28 @@ export default function App() {
       setAuthError(true);
       playChimeSound('error');
       logTransaction(`AUTH_FAILED: Invalid admin authentication attempt`, 'error');
+    }
+  };
+
+  const handleLogout = () => {
+    playChimeSound('click');
+    if (role === 'admin') {
+      setRole('student');
+      setCurrentUserId(1); // Set back to first default user
+      setIsLoggedIn(true); // Since they are back to a valid student (default user 1)
+      setActiveTab('home');
+      setModalType('auth_login');
+      triggerToast('Đã đăng xuất tài khoản quản trị!');
+      logTransaction(`AUTH_LOGOUT: Admin logged out`, 'system');
+    } else {
+      const activeUserRec = getActiveUser();
+      const name = activeUserRec ? activeUserRec.Full_Name : 'Học sinh';
+      setIsLoggedIn(false);
+      setCurrentUserId(-1); // No active user
+      setActiveTab('home');
+      setModalType('auth_login');
+      triggerToast('Đăng xuất thành công!');
+      logTransaction(`AUTH_LOGOUT: Student "${name}" logged out`, 'system');
     }
   };
 
@@ -948,6 +973,38 @@ export default function App() {
     }
   };
 
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Check file size (limit to 3MB)
+    if (file.size > 3 * 1024 * 1024) {
+      triggerToast("Kích thước ảnh quá lớn! Vui lòng chọn ảnh nhỏ hơn 3MB.", "error");
+      playChimeSound('error');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const base64String = event.target?.result as string;
+      if (!base64String) return;
+
+      const updatedUsers = users.map(u => 
+        u.User_ID === currentUserId ? { ...u, Avatar_URL: base64String } : u
+      );
+      setUsers(updatedUsers);
+      triggerToast("Tải ảnh đại diện mới thành công!");
+      playChimeSound('success');
+      
+      const activeUserRec = updatedUsers.find(u => u.User_ID === currentUserId);
+      if (activeUserRec) {
+        await dbUpsert('users', activeUserRec);
+      }
+      logTransaction(`UPDATE Users SET Avatar_URL = '[Base64 Image]' WHERE User_ID = ${currentUserId}; -- Học sinh đổi ảnh đại diện`, 'update');
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleSaveThemeSettings = async (updatedTheme: MonthlyTheme) => {
     setTheme(updatedTheme);
     playChimeSound('success');
@@ -1063,27 +1120,61 @@ export default function App() {
 
             {/* Quick Student Badge */}
             {role === 'student' && activeUser && (
-              <button 
-                onClick={() => handleTrySwitchRole('student')}
-                title="Đổi tài khoản học sinh"
-                className="flex items-center gap-3 bg-slate-950/70 hover:bg-slate-900 px-3 py-1.5 rounded-2xl border border-slate-800 transition text-left cursor-pointer group"
-              >
-                <img 
-                  className="w-8 h-8 rounded-full border border-sky-400 object-cover bg-slate-950 group-hover:scale-105 transition" 
-                  src={activeUser.Avatar_URL} 
-                  onError={(e) => { (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/adventurer/svg?seed=${activeUser.Full_Name}`; }}
-                  alt="Avatar" 
-                />
-                <div className="hidden sm:block text-left text-xs">
-                  <div className="font-extrabold text-sky-400 flex items-center gap-1.5">
-                    <span>{activeUser.Full_Name}</span>
-                    <span className="text-[9px] text-slate-500 font-normal underline">(Đổi)</span>
+              <div className="flex items-center gap-2.5">
+                <button 
+                  onClick={() => {
+                    playChimeSound('click');
+                    setActiveTab('profile');
+                  }}
+                  title="Xem hồ sơ cá nhân"
+                  className="flex items-center gap-3 bg-slate-950/50 hover:bg-slate-950 px-3.5 py-1.5 rounded-2xl border border-slate-800 hover:border-sky-500/40 transition-all duration-300 text-left cursor-pointer group shadow-inner"
+                >
+                  <div className="relative">
+                    <img 
+                      className="w-8.5 h-8.5 rounded-full border border-sky-400 object-cover bg-slate-950 group-hover:scale-105 transition duration-300" 
+                      src={activeUser.Avatar_URL} 
+                      onError={(e) => { (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/adventurer/svg?seed=${activeUser.Full_Name}`; }}
+                      alt="Avatar" 
+                    />
+                    <span className="absolute -bottom-0.5 -right-0.5 bg-amber-500 text-[8px] text-white rounded-full w-3.5 h-3.5 flex items-center justify-center border border-slate-900 font-bold shadow-sm pointer-events-none">👑</span>
                   </div>
-                  <div className="text-[10px] text-slate-400 flex items-center gap-1 font-bold">
-                    <span>{activeUser.Grade_Class}</span> • <span className="text-amber-400 font-extrabold">{activeUser.Total_Points.toLocaleString()} XP</span>
+                  <div className="hidden sm:block text-left text-xs space-y-0.5">
+                    <div className="font-extrabold text-sky-400 flex items-center gap-1.5 group-hover:text-sky-300 transition duration-300">
+                      <span>{activeUser.Full_Name}</span>
+                    </div>
+                    <div className="text-[10px] text-slate-300 flex items-center gap-1 font-bold">
+                      <span className="bg-sky-500/10 text-sky-300 px-1 py-0.5 rounded text-[8px] tracking-wide font-extrabold uppercase">{activeUser.Grade_Class}</span>
+                      <span className="text-amber-400 font-extrabold">{activeUser.Total_Points.toLocaleString()} XP</span>
+                    </div>
                   </div>
+                </button>
+
+                <button
+                  onClick={handleLogout}
+                  className="bg-rose-500/10 hover:bg-rose-600 text-rose-400 hover:text-white px-3.5 py-2.5 rounded-2xl border border-rose-500/20 hover:border-rose-600 transition duration-300 text-xs font-bold flex items-center gap-2 shadow-lg shadow-rose-500/5 hover:scale-[1.02] cursor-pointer"
+                  title="Đăng xuất khỏi tài khoản học sinh"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span className="hidden md:inline">Đăng xuất</span>
+                </button>
+              </div>
+            )}
+
+            {role === 'admin' && (
+              <div className="flex items-center gap-2">
+                <div className="hidden sm:flex items-center gap-2 bg-rose-500/10 px-3 py-1.5 rounded-2xl border border-rose-500/20 text-xs text-rose-400 font-extrabold">
+                  <span>🛡️ Ban Giám Hiệu</span>
                 </div>
-              </button>
+                
+                <button
+                  onClick={handleLogout}
+                  className="bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white p-2 sm:px-3 sm:py-1.5 rounded-2xl border border-rose-500/20 hover:border-rose-500 transition duration-200 text-xs font-bold flex items-center gap-1.5 shadow-sm shadow-rose-500/5 hover:scale-[1.02]"
+                  title="Đăng xuất quyền quản trị"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span className="hidden md:inline">Đăng xuất</span>
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -1640,14 +1731,39 @@ export default function App() {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   {/* Left profile info stats */}
                   <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm text-center space-y-6 h-fit">
-                    <div className="relative w-24 h-24 mx-auto">
-                      <img 
-                        className="w-full h-full rounded-full border-4 border-sky-400 object-cover shadow-md bg-slate-950" 
-                        src={activeUser.Avatar_URL} 
-                        onError={(e) => { (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/adventurer/svg?seed=${activeUser.Full_Name}`; }}
-                        alt="User" 
-                      />
-                      <span className="absolute bottom-0 right-0 bg-amber-500 text-white border-2 border-white rounded-full w-7 h-7 flex items-center justify-center text-xs shadow">👑</span>
+                    <div className="space-y-4">
+                      <div className="relative w-24 h-24 mx-auto group">
+                        <img 
+                          className="w-full h-full rounded-full border-4 border-sky-400 object-cover shadow-md bg-slate-950 transition duration-300 group-hover:brightness-75" 
+                          src={activeUser.Avatar_URL} 
+                          onError={(e) => { (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/adventurer/svg?seed=${activeUser.Full_Name}`; }}
+                          alt="User" 
+                        />
+                        <label className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full opacity-0 group-hover:opacity-100 cursor-pointer transition duration-300">
+                          <Camera className="w-6 h-6 text-white" />
+                          <input 
+                            type="file" 
+                            accept="image/*" 
+                            className="hidden" 
+                            onChange={handleAvatarUpload}
+                          />
+                        </label>
+                        <span className="absolute bottom-0 right-0 bg-amber-500 text-white border-2 border-white rounded-full w-7 h-7 flex items-center justify-center text-xs shadow pointer-events-none">👑</span>
+                      </div>
+                      
+                      <div className="flex flex-col items-center gap-1.5">
+                        <label className="inline-flex items-center gap-1.5 text-[11px] font-extrabold text-sky-600 hover:text-sky-700 cursor-pointer bg-sky-50 hover:bg-sky-100/80 px-3 py-1.5 rounded-xl border border-sky-100 shadow-sm transition duration-200">
+                          <Upload className="w-3.5 h-3.5" />
+                          <span>Đổi ảnh từ máy tính</span>
+                          <input 
+                            type="file" 
+                            accept="image/*" 
+                            className="hidden" 
+                            onChange={handleAvatarUpload}
+                          />
+                        </label>
+                        <p className="text-[10px] text-slate-400 font-medium italic">Hỗ trợ JPG, PNG dưới 3MB</p>
+                      </div>
                     </div>
 
                     <div>
@@ -1681,6 +1797,15 @@ export default function App() {
                         <span className="text-[9px] text-slate-400 font-extrabold uppercase tracking-wide block">Yêu Thích</span>
                       </div>
                     </div>
+
+                    {/* Logout Button */}
+                    <button
+                      onClick={handleLogout}
+                      className="w-full bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-100 hover:border-rose-200 py-2.5 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 transition duration-200 shadow-sm"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      <span>Đăng xuất tài khoản</span>
+                    </button>
                   </div>
 
                   {/* Middle personal favorites list and logs */}
@@ -1843,12 +1968,14 @@ export default function App() {
             <div className="bg-slate-900 border border-slate-800 text-white rounded-3xl w-full max-w-md p-6 overflow-hidden shadow-2xl relative animate-fadeIn space-y-5">
               
               {/* Top Close Button */}
-              <button 
-                onClick={() => setModalType(null)}
-                className="absolute top-4 right-4 text-slate-400 hover:text-white transition p-1 rounded-full hover:bg-slate-800"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              {isLoggedIn && (
+                <button 
+                  onClick={() => setModalType(null)}
+                  className="absolute top-4 right-4 text-slate-400 hover:text-white transition p-1 rounded-full hover:bg-slate-800"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              )}
 
               {/* Header Info */}
               <div className="text-center space-y-1 mt-2">
@@ -1972,16 +2099,18 @@ export default function App() {
 
                   {/* Submit Button */}
                   <div className="flex gap-2 text-xs pt-1">
-                    <button 
-                      type="button" 
-                      onClick={() => setModalType(null)}
-                      className="w-1/3 bg-slate-800 hover:bg-slate-700 text-white font-bold py-2.5 rounded-xl transition"
-                    >
-                      Hủy bỏ
-                    </button>
+                    {isLoggedIn && (
+                      <button 
+                        type="button" 
+                        onClick={() => setModalType(null)}
+                        className="w-1/3 bg-slate-800 hover:bg-slate-700 text-white font-bold py-2.5 rounded-xl transition"
+                      >
+                        Hủy bỏ
+                      </button>
+                    )}
                     <button 
                       type="submit"
-                      className="w-2/3 bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold py-2.5 rounded-xl transition shadow-lg shadow-sky-500/15 flex items-center justify-center gap-1.5 hover:scale-[1.02] duration-200"
+                      className={`${isLoggedIn ? 'w-2/3' : 'w-full'} bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold py-2.5 rounded-xl transition shadow-lg shadow-sky-500/15 flex items-center justify-center gap-1.5 hover:scale-[1.02] duration-200`}
                     >
                       <GraduationCap className="w-4 h-4 text-slate-950" />
                       Đăng Nhập Học Sinh
@@ -2034,16 +2163,18 @@ export default function App() {
 
                   {/* Submit Button */}
                   <div className="flex gap-2 text-xs pt-2">
-                    <button 
-                      type="button" 
-                      onClick={() => setModalType(null)}
-                      className="w-1/3 bg-slate-800 hover:bg-slate-700 text-white font-bold py-2.5 rounded-xl transition"
-                    >
-                      Hủy bỏ
-                    </button>
+                    {isLoggedIn && (
+                      <button 
+                        type="button" 
+                        onClick={() => setModalType(null)}
+                        className="w-1/3 bg-slate-800 hover:bg-slate-700 text-white font-bold py-2.5 rounded-xl transition"
+                      >
+                        Hủy bỏ
+                      </button>
+                    )}
                     <button 
                       type="submit"
-                      className="w-2/3 bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold py-2.5 rounded-xl transition shadow-lg shadow-sky-500/15 flex items-center justify-center gap-1.5 hover:scale-[1.02] duration-200"
+                      className={`${isLoggedIn ? 'w-2/3' : 'w-full'} bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold py-2.5 rounded-xl transition shadow-lg shadow-sky-500/15 flex items-center justify-center gap-1.5 hover:scale-[1.02] duration-200`}
                     >
                       <Lock className="w-3.5 h-3.5 text-slate-950" />
                       Đăng Nhập Quản Trị
