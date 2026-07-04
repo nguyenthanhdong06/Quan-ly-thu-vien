@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   BookOpen, User, Award, ShieldAlert, Sparkles, Trophy, Heart, Search, Filter, 
   Menu, X, Calendar, Activity, CheckCircle, BarChart2, Radio, Play, ChevronRight, Eye, Star,
-  TrendingUp, HelpCircle
+  TrendingUp, HelpCircle, Lock, GraduationCap, Shield
 } from 'lucide-react';
 
 import { 
@@ -10,13 +10,130 @@ import {
 } from './data';
 import { User as UserType, Book, MonthlyTheme, UserBookInteraction, Challenge, Badge, LogEntry } from './types';
 import { executeVirtualSQL } from './sqlEngine';
+import { supabase } from './supabase';
+
+const SUPABASE_SQL_SCHEMA = `-- =========================================================================
+-- SQL SETUP FOR SUPABASE PLAYGROUND - BOOK READING APP
+-- Copy and paste this script directly into the Supabase SQL Editor
+-- to initialize your database structure and seed the initial data.
+-- =========================================================================
+
+-- 1. DROP EXISTING TABLES IF ANY (CAUTION: CLEARS DATA)
+DROP TABLE IF EXISTS user_book_interactions CASCADE;
+DROP TABLE IF EXISTS books CASCADE;
+DROP TABLE IF EXISTS users CASCADE;
+DROP TABLE IF EXISTS monthly_themes CASCADE;
+DROP TABLE IF EXISTS challenges CASCADE;
+DROP TABLE IF EXISTS badges CASCADE;
+
+-- 2. CREATE TABLES
+CREATE TABLE users (
+  "User_ID" INT PRIMARY KEY,
+  "Username" TEXT UNIQUE,
+  "Full_Name" TEXT NOT NULL,
+  "Grade_Class" TEXT NOT NULL,
+  "Avatar_URL" TEXT,
+  "Total_Points" INT DEFAULT 0,
+  "Password" TEXT
+);
+
+CREATE TABLE books (
+  "Book_ID" INT PRIMARY KEY,
+  "Title" TEXT NOT NULL,
+  "Author" TEXT NOT NULL,
+  "Cover_Image" TEXT,
+  "Category" TEXT NOT NULL,
+  "Target_Grade" TEXT NOT NULL,
+  "Book_Type" TEXT CHECK ("Book_Type" IN ('Ebook', 'Audio')),
+  "Content_URL" TEXT DEFAULT '#'
+);
+
+CREATE TABLE monthly_themes (
+  "Theme_ID" INT PRIMARY KEY,
+  "Month_Year" TEXT NOT NULL,
+  "Title" TEXT NOT NULL,
+  "Banner_Image" TEXT,
+  "Description" TEXT,
+  "Media_Podcast" TEXT,
+  "Media_Video" TEXT,
+  "Media_MiniGame" TEXT
+);
+
+CREATE TABLE user_book_interactions (
+  "Interaction_ID" INT PRIMARY KEY,
+  "User_ID" INT REFERENCES users("User_ID") ON DELETE CASCADE,
+  "Book_ID" INT REFERENCES books("Book_ID") ON DELETE CASCADE,
+  "Is_Favorite" BOOLEAN DEFAULT FALSE,
+  "Reading_Progress" INT DEFAULT 0,
+  "Status" TEXT CHECK ("Status" IN ('Đang đọc', 'Đã hoàn thành'))
+);
+
+CREATE TABLE challenges (
+  "Challenge_ID" INT PRIMARY KEY,
+  "Title" TEXT NOT NULL,
+  "Target" INT NOT NULL,
+  "Current" INT DEFAULT 0,
+  "Progress_Type" TEXT NOT NULL,
+  "Completed" BOOLEAN DEFAULT FALSE,
+  "Reward" TEXT
+);
+
+CREATE TABLE badges (
+  "id" TEXT PRIMARY KEY,
+  "title" TEXT NOT NULL,
+  "desc" TEXT,
+  "icon" TEXT,
+  "color" TEXT,
+  "owned" BOOLEAN DEFAULT FALSE
+);
+
+-- 3. DISABLE ROW LEVEL SECURITY FOR QUICK TESTING PLAYGROUND
+ALTER TABLE users DISABLE ROW LEVEL SECURITY;
+ALTER TABLE books DISABLE ROW LEVEL SECURITY;
+ALTER TABLE monthly_themes DISABLE ROW LEVEL SECURITY;
+ALTER TABLE user_book_interactions DISABLE ROW LEVEL SECURITY;
+ALTER TABLE challenges DISABLE ROW LEVEL SECURITY;
+ALTER TABLE badges DISABLE ROW LEVEL SECURITY;
+
+-- 4. SEED DATA
+INSERT INTO users ("User_ID", "Username", "Full_Name", "Grade_Class", "Avatar_URL", "Total_Points", "Password") VALUES
+(1, 'lamanh', 'Nguyễn Lâm Anh', 'Lớp 5A', 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150', 1450, 'user123'),
+(2, 'minhquan', 'Trần Minh Quân', 'Lớp 4B', 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150', 1100, 'user456'),
+(3, 'myhuyen', 'Lê Mỹ Huyền', 'Lớp 5C', 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150', 1980, 'user789');
+
+INSERT INTO books ("Book_ID", "Title", "Author", "Cover_Image", "Category", "Target_Grade", "Book_Type", "Content_URL") VALUES
+(1, 'Dế Mèn Phiêu Lưu Ký', 'Tô Hoài', 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=400', 'Văn học Việt Nam', 'Lớp 4-5', 'Ebook', '#'),
+(2, 'Sự Tích Trầu Cau', 'Dân gian Việt Nam', 'https://images.unsplash.com/photo-1512820790803-83ca734da794?w=400', 'Cổ tích', 'Lớp 1-3', 'Audio', '#'),
+(3, 'Khám Phá Đại Dương', 'NXB Kim Đồng', 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?w=400', 'Khoa học', 'Lớp 4-5', 'Ebook', '#'),
+(4, 'Thám Hiểm Vũ Trụ', 'Laura Ingalls Wilder', 'https://images.unsplash.com/photo-1506880018603-83d5b814b5a6?w=400', 'Khoa học', 'Lớp 5', 'Ebook', '#'),
+(5, 'Kể chuyện Bác Hồ', 'Nhiều tác giả', 'https://images.unsplash.com/photo-1532012197267-da84d127e765?w=400', 'Lịch sử', 'Lớp 4-5', 'Audio', '#');
+
+INSERT INTO monthly_themes ("Theme_ID", "Month_Year", "Title", "Banner_Image", "Description", "Media_Podcast", "Media_Video", "Media_MiniGame") VALUES
+(101, '10/2026', 'Đại Dương Xanh Kỳ Thú', 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1000', 'Cùng lặn sâu xuống đáy đại dương tìm hiểu các sinh vật độc đáo của biển cả và rèn luyện kỹ năng đọc sách trong tháng này!', 'Podcast: Bí mật Rãnh Mariana - Tập 4', 'Video: Thám hiểm rạn san hô kỳ ảo', 'Trò chơi dọn rác cứu sinh vật biển');
+
+INSERT INTO user_book_interactions ("Interaction_ID", "User_ID", "Book_ID", "Is_Favorite", "Reading_Progress", "Status") VALUES
+(1, 1, 1, TRUE, 75, 'Đang đọc'),
+(2, 1, 2, FALSE, 100, 'Đã hoàn thành'),
+(3, 1, 3, TRUE, 10, 'Đang đọc'),
+(4, 2, 4, TRUE, 90, 'Đang đọc');
+
+INSERT INTO challenges ("Challenge_ID", "Title", "Target", "Current", "Progress_Type", "Completed", "Reward") VALUES
+(1, 'Kẻ hủy diệt sách cổ', 3, 2, 'Cổ tích', FALSE, 'Huy hiệu Cổ Tích'),
+(2, 'Trái tim xanh bảo vệ biển', 1, 0, 'Quiz Đại Dương', FALSE, 'Huy hiệu Bảo Vệ Biển'),
+(3, 'Mọt Sách Chuyên Cần', 5, 5, 'Any Book', TRUE, 'Huy hiệu Chuyên Cần');
+
+INSERT INTO badges ("id", "title", "desc", "icon", "color", "owned") VALUES
+('b1', 'Mọt Sách', 'Đọc trọn vẹn hơn 5 cuốn sách', '📚', 'bg-sky-500/25 border-sky-500 text-sky-400', TRUE),
+('b2', 'Thông Thái', 'Hoàn thành 3 bài Quiz chủ điểm', '🧠', 'bg-amber-500/25 border-amber-500 text-amber-400', FALSE),
+('b3', 'Bảo Vệ Biển', 'Tham gia trò chơi bảo vệ san hô', '🐬', 'bg-teal-500/25 border-teal-500 text-teal-400', TRUE),
+('b4', 'Chiến Thần Đọc Sách', 'Đạt mốc 1500 XP thi đua', '👑', 'bg-indigo-500/25 border-indigo-500 text-indigo-400', FALSE);`;
+
 
 // Subcomponents
 import AudioPlayer from './components/AudioPlayer';
 import StoryVideoPlayer from './components/StoryVideoPlayer';
 import CleanOceanGame from './components/CleanOceanGame';
 import InteractiveQuiz from './components/InteractiveQuiz';
-import SqlMonitor from './components/SqlMonitor';
 import { 
   AdminBooksView, AdminThemeView, AdminStudentsView, AdminGamificationView, AdminAnalyticsView 
 } from './components/AdminModules';
@@ -27,7 +144,7 @@ export default function App() {
   // ==========================================
   const [role, setRole] = useState<'student' | 'admin'>('student');
   const [activeTab, setActiveTab] = useState<string>('home');
-  const [currentUserId] = useState<number>(1); // Active simulated student: Nguyễn Lâm Anh
+  const [currentUserId, setCurrentUserId] = useState<number>(1); // Active simulated student: Nguyễn Lâm Anh
 
   const [users, setUsers] = useState<UserType[]>(() => {
     const saved = localStorage.getItem('db_users');
@@ -63,6 +180,14 @@ export default function App() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
 
   // ==========================================
+  // SUPABASE SYNC STATES
+  // ==========================================
+  const [supabaseStatus, setSupabaseStatus] = useState<'connecting' | 'connected' | 'error' | 'tables_missing'>('connecting');
+  const [supabaseErrorMsg, setSupabaseErrorMsg] = useState<string>('');
+  const [isSupabaseModalOpen, setIsSupabaseModalOpen] = useState(false);
+
+
+  // ==========================================
   // VIEW & FILTER LOCAL STATES
   // ==========================================
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -72,14 +197,17 @@ export default function App() {
 
   // Modals & overlay states
   const [modalType, setModalType] = useState<
-    null | 'read_book' | 'podcast' | 'video' | 'quiz' | 'game' | 'admin_auth' | 'add_book' | 'edit_book' | 'add_student' | 'edit_student' | 'award_xp'
+    null | 'read_book' | 'podcast' | 'video' | 'quiz' | 'game' | 'admin_auth' | 'auth_login' | 'add_book' | 'edit_book' | 'add_student' | 'edit_student' | 'award_xp'
   >(null);
   const [activeModalData, setActiveModalData] = useState<any>(null);
   
   // Custom toast messages
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
-  // Administrative login fields
+  // Auth fields
+  const [loginModalTab, setLoginModalTab] = useState<'student' | 'admin'>('student');
+  const [studentUsernameInput, setStudentUsernameInput] = useState('');
+  const [studentPasswordInput, setStudentPasswordInput] = useState('');
   const [adminUsername, setAdminUsername] = useState('admin');
   const [adminPassword, setAdminPassword] = useState('');
   const [authError, setAuthError] = useState(false);
@@ -94,6 +222,8 @@ export default function App() {
 
   const [editStudentName, setEditStudentName] = useState('');
   const [editStudentClass, setEditStudentClass] = useState('');
+  const [editStudentPassword, setEditStudentPassword] = useState('');
+  const [editStudentUsername, setEditStudentUsername] = useState('');
   const [awardXpAmount, setAwardXpAmount] = useState(100);
 
   // ==========================================
@@ -123,11 +253,136 @@ export default function App() {
     localStorage.setItem('db_badges', JSON.stringify(badges));
   }, [badges]);
 
-  // Initial DB logs
+  // ==========================================
+  // SUPABASE CLOUD FUNCTIONS
+  // ==========================================
+  const loadDataFromSupabase = async () => {
+    setSupabaseStatus('connecting');
+    try {
+      // 1. Check users table
+      const { data: dbUsers, error: usersErr } = await supabase.from('users').select('*');
+      
+      // 2. Check other tables
+      const { data: dbBooks, error: booksErr } = await supabase.from('books').select('*');
+      const { data: dbThemes, error: themesErr } = await supabase.from('monthly_themes').select('*');
+      const { data: dbInteractions, error: intersErr } = await supabase.from('user_book_interactions').select('*');
+      const { data: dbChallenges, error: challengesErr } = await supabase.from('challenges').select('*');
+      const { data: dbBadges, error: badgesErr } = await supabase.from('badges').select('*');
+
+      const anyTableError = usersErr || booksErr || themesErr || intersErr || challengesErr || badgesErr;
+
+      if (anyTableError) {
+        const isTableMissing = 
+          anyTableError.code === '42P01' || 
+          anyTableError.message?.toLowerCase().includes('relation') || 
+          anyTableError.message?.toLowerCase().includes('does not exist') ||
+          anyTableError.message?.toLowerCase().includes('not found');
+
+        if (isTableMissing) {
+          setSupabaseStatus('tables_missing');
+          setSupabaseErrorMsg('Các bảng chưa được tạo hoặc bị thiếu trên Supabase. Vui lòng bấm vào đây để xem hướng dẫn thiết lập SQL!');
+          setIsSupabaseModalOpen(true);
+          return false;
+        }
+        throw anyTableError;
+      }
+
+      // If data is present in Supabase, update our React states!
+      if (dbUsers && dbUsers.length > 0) setUsers(dbUsers);
+      if (dbBooks && dbBooks.length > 0) setBooks(dbBooks);
+      if (dbThemes && dbThemes.length > 0) setTheme(dbThemes[0]);
+      if (dbInteractions) setInteractions(dbInteractions);
+      if (dbChallenges && dbChallenges.length > 0) setChallenges(dbChallenges);
+      if (dbBadges && dbBadges.length > 0) setBadges(dbBadges);
+
+      setSupabaseStatus('connected');
+      logTransaction('SUPABASE_SYNC: Đồng bộ dữ liệu từ Supabase đám mây thành công!', 'system');
+      return true;
+    } catch (err: any) {
+      console.error('Supabase fetch error:', err);
+      const errStr = (err.message || '').toLowerCase();
+      if (err.code === '42P01' || errStr.includes('relation') || errStr.includes('does not exist') || errStr.includes('not found')) {
+        setSupabaseStatus('tables_missing');
+        setSupabaseErrorMsg('Các bảng chưa được tạo hoặc bị thiếu trên Supabase. Vui lòng xem hướng dẫn SQL!');
+        setIsSupabaseModalOpen(true);
+      } else {
+        setSupabaseStatus('error');
+        setSupabaseErrorMsg(err.message || 'Lỗi kết nối đến Supabase');
+        setIsSupabaseModalOpen(true);
+      }
+      logTransaction(`SUPABASE_ERROR: Lỗi đồng bộ: ${err.message}`, 'error');
+      return false;
+    }
+  };
+
+  const pushDataToSupabase = async () => {
+    try {
+      setSupabaseStatus('connecting');
+      // Delete old contents and insert current React states via upsert
+      const { error: usersErr } = await supabase.from('users').upsert(users);
+      const { error: booksErr } = await supabase.from('books').upsert(books);
+      const { error: themeErr } = await supabase.from('monthly_themes').upsert([theme]);
+      const { error: intersErr } = await supabase.from('user_book_interactions').upsert(interactions);
+      const { error: challengesErr } = await supabase.from('challenges').upsert(challenges);
+      const { error: badgesErr } = await supabase.from('badges').upsert(badges);
+
+      const firstErr = usersErr || booksErr || themeErr || intersErr || challengesErr || badgesErr;
+      if (firstErr) throw firstErr;
+
+      setSupabaseStatus('connected');
+      triggerToast('Đã đẩy toàn bộ dữ liệu hiện tại lên Supabase đám mây!');
+      logTransaction('SUPABASE_SYNC: Đã đẩy dữ liệu local lên đám mây (Upsert thành công).', 'system');
+    } catch (err: any) {
+      console.error('Supabase push error:', err);
+      triggerToast('Lỗi đẩy dữ liệu lên Supabase: ' + err.message, 'error');
+      const errStr = (err.message || '').toLowerCase();
+      if (err.code === '42P01' || errStr.includes('relation') || errStr.includes('does not exist') || errStr.includes('not found')) {
+        setSupabaseStatus('tables_missing');
+        setSupabaseErrorMsg('Các bảng chưa được tạo trên Supabase. Bạn hãy tạo bảng trước bằng SQL Editor.');
+      } else {
+        setSupabaseStatus('error');
+        setSupabaseErrorMsg(err.message);
+      }
+    }
+  };
+
+  const dbUpsert = async (table: string, data: any) => {
+    try {
+      const { error } = await supabase.from(table).upsert(Array.isArray(data) ? data : [data]);
+      if (error) {
+        console.error(`Supabase Upsert error for table "${table}":`, error);
+        logTransaction(`SUPABASE_WRITE_ERR (${table}): ${error.message}`, 'error');
+      } else {
+        logTransaction(`SUPABASE_WRITE_OK: Đã lưu trực tiếp dữ liệu bảng "${table}" lên đám mây thành công.`, 'system');
+      }
+    } catch (err: any) {
+      console.error(err);
+    }
+  };
+
+  const dbDelete = async (table: string, matchConditions: any) => {
+    try {
+      const { error } = await supabase.from(table).delete().match(matchConditions);
+      if (error) {
+        console.error(`Supabase Delete error for table "${table}":`, error);
+        logTransaction(`SUPABASE_DELETE_ERR (${table}): ${error.message}`, 'error');
+      } else {
+        logTransaction(`SUPABASE_DELETE_OK: Đã xóa dữ liệu bảng "${table}" trên đám mây thành công.`, 'system');
+      }
+    } catch (err: any) {
+      console.error(err);
+    }
+  };
+
+  // Initial DB logs and Supabase synchronization
   useEffect(() => {
     logTransaction(`SELECT * FROM Users WHERE User_ID = ${currentUserId}; -- Khởi chạy hồ sơ học sinh`, 'select');
     logTransaction(`SELECT * FROM Monthly_Themes WHERE Theme_ID = 101; -- Đồng bộ sự kiện tháng`, 'select');
+    
+    // Auto-sync from Supabase on start
+    loadDataFromSupabase();
   }, []);
+
 
   // ==========================================
   // SYSTEM HELPER FUNCTIONS
@@ -242,17 +497,41 @@ export default function App() {
     return result;
   };
 
-  // Switch role with validation
+  // Switch role with validation / unified login dialog trigger
   const handleTrySwitchRole = (newRole: 'student' | 'admin') => {
     playChimeSound('click');
-    if (newRole === 'admin' && role !== 'admin') {
-      setAuthError(false);
-      setAdminPassword('');
-      setModalType('admin_auth');
-    } else {
+    setAuthError(false);
+    setLoginModalTab(newRole);
+    setAdminPassword('');
+    setStudentPasswordInput('');
+    setModalType('auth_login');
+  };
+
+  const handleStudentLoginSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanUsername = studentUsernameInput.trim().toLowerCase();
+    const cleanPassword = studentPasswordInput.trim();
+    
+    // Find matching student
+    const matchedUser = users.find(u => 
+      u.Username && u.Username.toLowerCase() === cleanUsername && u.Password === cleanPassword
+    );
+
+    if (matchedUser) {
+      setCurrentUserId(matchedUser.User_ID);
       setRole('student');
       setActiveTab('home');
-      logTransaction(`ROLE_CHANGE: Switched view session to STUDENT`, 'system');
+      setModalType(null);
+      setAuthError(false);
+      setStudentUsernameInput('');
+      setStudentPasswordInput('');
+      playChimeSound('victory');
+      triggerToast(`Chào mừng ${matchedUser.Full_Name} quay trở lại!`);
+      logTransaction(`AUTH_SUCCESS: Student "${matchedUser.Full_Name}" (ID: ${matchedUser.User_ID}) logged in`, 'system');
+    } else {
+      setAuthError(true);
+      playChimeSound('error');
+      logTransaction(`AUTH_FAILED: Student login failed for username "${studentUsernameInput}"`, 'error');
     }
   };
 
@@ -262,6 +541,8 @@ export default function App() {
       setRole('admin');
       setActiveTab('admin-books');
       setModalType(null);
+      setAuthError(false);
+      setAdminPassword('');
       playChimeSound('victory');
       triggerToast('Đăng nhập Quản trị thành công!');
       logTransaction(`AUTH_SUCCESS: Admin logged in successfully as "${adminUsername}"`, 'system');
@@ -285,19 +566,29 @@ export default function App() {
   // ==========================================
   // CLIENT CORE READER INTERACTIONS
   // ==========================================
-  const handleToggleFavorite = (bookId: number) => {
+  const handleToggleFavorite = async (bookId: number) => {
     playChimeSound('click');
     const existing = interactions.find(i => i.User_ID === currentUserId && i.Book_ID === bookId);
     
     if (existing) {
+      const nextFav = !existing.Is_Favorite;
       const updated = interactions.map(i => 
         (i.User_ID === currentUserId && i.Book_ID === bookId) 
-          ? { ...i, Is_Favorite: !i.Is_Favorite } 
+          ? { ...i, Is_Favorite: nextFav } 
           : i
       );
       setInteractions(updated);
-      logTransaction(`UPDATE User_Book_Interactions SET Is_Favorite = ${!existing.Is_Favorite} WHERE User_ID = ${currentUserId} AND Book_ID = ${bookId};`);
-      triggerToast(!existing.Is_Favorite ? "Đã lưu vào tủ sách yêu thích!" : "Đã gỡ khỏi tủ sách yêu thích!");
+      logTransaction(`UPDATE User_Book_Interactions SET Is_Favorite = ${nextFav} WHERE User_ID = ${currentUserId} AND Book_ID = ${bookId};`);
+      triggerToast(nextFav ? "Đã lưu vào tủ sách yêu thích!" : "Đã gỡ khỏi tủ sách yêu thích!");
+      
+      await dbUpsert('user_book_interactions', {
+        Interaction_ID: existing.Interaction_ID,
+        User_ID: currentUserId,
+        Book_ID: bookId,
+        Is_Favorite: nextFav,
+        Reading_Progress: existing.Reading_Progress,
+        Status: existing.Status
+      });
     } else {
       const newId = interactions.length > 0 ? Math.max(...interactions.map(i => i.Interaction_ID)) + 1 : 1;
       const newInteraction: UserBookInteraction = {
@@ -311,10 +602,12 @@ export default function App() {
       setInteractions([...interactions, newInteraction]);
       logTransaction(`INSERT INTO User_Book_Interactions VALUES (${newId}, ${currentUserId}, ${bookId}, TRUE, 0, 'Đang đọc');`);
       triggerToast("Đã lưu vào tủ sách yêu thích!");
+      
+      await dbUpsert('user_book_interactions', newInteraction);
     }
   };
 
-  const handleOpenReadBook = (bookId: number) => {
+  const handleOpenReadBook = async (bookId: number) => {
     playChimeSound('click');
     const existing = interactions.find(i => i.User_ID === currentUserId && i.Book_ID === bookId);
     if (!existing) {
@@ -329,12 +622,14 @@ export default function App() {
       };
       setInteractions([...interactions, newInteraction]);
       logTransaction(`INSERT INTO User_Book_Interactions (Interaction_ID, User_ID, Book_ID) VALUES (${newId}, ${currentUserId}, ${bookId});`);
+      
+      await dbUpsert('user_book_interactions', newInteraction);
     }
     setActiveModalData(bookId);
     setModalType('read_book');
   };
 
-  const handleUpdateReadingProgress = (bookId: number, targetPercent: number) => {
+  const handleUpdateReadingProgress = async (bookId: number, targetPercent: number) => {
     const existing = interactions.find(i => i.User_ID === currentUserId && i.Book_ID === bookId);
     if (!existing) return;
 
@@ -351,6 +646,13 @@ export default function App() {
 
     logTransaction(`UPDATE User_Book_Interactions SET Reading_Progress = ${targetPercent}, Status = '${nextStatus}' WHERE Book_ID = ${bookId} AND User_ID = ${currentUserId};`);
 
+    const updatedIntRec = {
+      ...existing,
+      Reading_Progress: targetPercent,
+      Status: nextStatus as any
+    };
+    await dbUpsert('user_book_interactions', updatedIntRec);
+
     if (isNowCompleted && oldPercent < 100) {
       // Award student +50 XP
       const updatedUsers = users.map(u => 
@@ -361,17 +663,29 @@ export default function App() {
       triggerToast("Chúc mừng em đã đọc xong cuốn sách! Cộng thêm +50 XP rèn luyện!");
       logTransaction(`UPDATE Users SET Total_Points = Total_Points + 50 WHERE User_ID = ${currentUserId}; -- Đọc xong sách`, 'update');
 
+      const activeUserRec = updatedUsers.find(u => u.User_ID === currentUserId);
+      if (activeUserRec) {
+        await dbUpsert('users', activeUserRec);
+      }
+
       // Update student active first challenge (Kẻ hủy diệt sách cổ)
       const targetBook = books.find(b => b.Book_ID === bookId);
       if (targetBook && targetBook.Category === "Cổ tích") {
-        setChallenges(prev => prev.map(c => {
+        let challengeToUpdate: any = null;
+        const updatedChallenges = challenges.map(c => {
           if (c.Challenge_ID === 1 && c.Current < c.Target) {
             const nextVal = c.Current + 1;
-            return { ...c, Current: nextVal, Completed: nextVal >= c.Target };
+            challengeToUpdate = { ...c, Current: nextVal, Completed: nextVal >= c.Target };
+            return challengeToUpdate;
           }
           return c;
-        }));
+        });
+        setChallenges(updatedChallenges);
         logTransaction(`UPDATE Challenges SET Current = Current + 1 WHERE Challenge_ID = 1; -- Cổ tích đọc thêm`, 'update');
+        
+        if (challengeToUpdate) {
+          await dbUpsert('challenges', challengeToUpdate);
+        }
       }
     } else {
       playChimeSound('success');
@@ -381,25 +695,35 @@ export default function App() {
   };
 
   // Multimedia Completion callbacks
-  const handlePodcastComplete = () => {
+  const handlePodcastComplete = async () => {
     const updatedUsers = users.map(u => 
       u.User_ID === currentUserId ? { ...u, Total_Points: u.Total_Points + 30 } : u
     );
     setUsers(updatedUsers);
     triggerToast("Học tập xuất sắc! Đã nhận +30 XP nghe Podcast!");
     logTransaction(`UPDATE Users SET Total_Points = Total_Points + 30 WHERE User_ID = ${currentUserId}; -- Hoàn thành Podcast`, 'update');
+
+    const activeUserRec = updatedUsers.find(u => u.User_ID === currentUserId);
+    if (activeUserRec) {
+      await dbUpsert('users', activeUserRec);
+    }
   };
 
-  const handleVideoComplete = () => {
+  const handleVideoComplete = async () => {
     const updatedUsers = users.map(u => 
       u.User_ID === currentUserId ? { ...u, Total_Points: u.Total_Points + 40 } : u
     );
     setUsers(updatedUsers);
     triggerToast("Học tập xuất sắc! Đã nhận +40 XP bài giảng Video!");
     logTransaction(`UPDATE Users SET Total_Points = Total_Points + 40 WHERE User_ID = ${currentUserId}; -- Hoàn thành Video bài học`, 'update');
+
+    const activeUserRec = updatedUsers.find(u => u.User_ID === currentUserId);
+    if (activeUserRec) {
+      await dbUpsert('users', activeUserRec);
+    }
   };
 
-  const handleGameComplete = () => {
+  const handleGameComplete = async () => {
     const updatedUsers = users.map(u => 
       u.User_ID === currentUserId ? { ...u, Total_Points: u.Total_Points + 150 } : u
     );
@@ -407,11 +731,21 @@ export default function App() {
     triggerToast("Giải cứu biển cả thành công! Đã nhận +150 XP thử thách sinh thái!");
     logTransaction(`UPDATE Users SET Total_Points = Total_Points + 150 WHERE User_ID = ${currentUserId}; -- Hoàn thành MiniGame sinh thái`, 'update');
 
+    const activeUserRec = updatedUsers.find(u => u.User_ID === currentUserId);
+    if (activeUserRec) {
+      await dbUpsert('users', activeUserRec);
+    }
+
     // Update student badge list
-    setBadges(prev => prev.map(b => b.id === 'b3' ? { ...b, owned: true } : b));
+    const updatedBadges = badges.map(b => b.id === 'b3' ? { ...b, owned: true } : b);
+    setBadges(updatedBadges);
+    const targetBadge = updatedBadges.find(b => b.id === 'b3');
+    if (targetBadge) {
+      await dbUpsert('badges', targetBadge);
+    }
   };
 
-  const handleQuizComplete = (score: number) => {
+  const handleQuizComplete = async (score: number) => {
     const totalQuestions = QUIZ_QUESTIONS.length;
     const earnedXp = score * 30 + (score === totalQuestions ? 10 : 0);
 
@@ -422,23 +756,35 @@ export default function App() {
     triggerToast(`Đã nhận +${earnedXp} XP thi đua làm câu hỏi!`);
     logTransaction(`UPDATE Users SET Total_Points = Total_Points + ${earnedXp} WHERE User_ID = ${currentUserId}; -- Hoàn thành Quiz`, 'update');
 
+    const activeUserRec = updatedUsers.find(u => u.User_ID === currentUserId);
+    if (activeUserRec) {
+      await dbUpsert('users', activeUserRec);
+    }
+
     if (score === totalQuestions) {
       // Advance Challenge 2 (Trái tim xanh bảo vệ biển)
-      setChallenges(prev => prev.map(c => {
+      let challengeToUpdate: any = null;
+      const updatedChallenges = challenges.map(c => {
         if (c.Challenge_ID === 2 && c.Current < c.Target) {
           const nextVal = c.Current + 1;
-          return { ...c, Current: nextVal, Completed: nextVal >= c.Target };
+          challengeToUpdate = { ...c, Current: nextVal, Completed: nextVal >= c.Target };
+          return challengeToUpdate;
         }
         return c;
-      }));
+      });
+      setChallenges(updatedChallenges);
       logTransaction(`UPDATE Challenges SET Current = Current + 1 WHERE Challenge_ID = 2; -- Đạt điểm Quiz tuyệt đối`, 'update');
+      
+      if (challengeToUpdate) {
+        await dbUpsert('challenges', challengeToUpdate);
+      }
     }
   };
 
   // ==========================================
   // ADMINISTRATIVE WORKFLOW FUNCTIONS
   // ==========================================
-  const handleAddNewBook = () => {
+  const handleAddNewBook = async () => {
     if (!editBookTitle || !editBookAuthor) {
       playChimeSound('error');
       triggerToast('Vui lòng điền đủ Tựa sách và Tác giả!', 'error');
@@ -462,6 +808,8 @@ export default function App() {
     triggerToast('Thêm sách mới thành công!');
     logTransaction(`INSERT INTO Books VALUES (${newId}, '${editBookTitle}', '${editBookAuthor}', '${editBookCategory}', '${editBookType}');`, 'insert');
     setModalType(null);
+
+    await dbUpsert('books', newBook);
   };
 
   const handleEditBookInit = (book: Book) => {
@@ -475,36 +823,45 @@ export default function App() {
     setModalType('edit_book');
   };
 
-  const handleSaveBookEdits = () => {
-    const updatedBooks = books.map(b => 
-      b.Book_ID === activeModalData 
-        ? { 
-            ...b, 
-            Title: editBookTitle, 
-            Author: editBookAuthor, 
-            Category: editBookCategory, 
-            Target_Grade: editBookGrade, 
-            Book_Type: editBookType, 
-            Cover_Image: editBookCover 
-          }
-        : b
-    );
+  const handleSaveBookEdits = async () => {
+    let bookToUpdate: any = null;
+    const updatedBooks = books.map(b => {
+      if (b.Book_ID === activeModalData) {
+        bookToUpdate = { 
+          ...b, 
+          Title: editBookTitle, 
+          Author: editBookAuthor, 
+          Category: editBookCategory, 
+          Target_Grade: editBookGrade, 
+          Book_Type: editBookType, 
+          Cover_Image: editBookCover 
+        };
+        return bookToUpdate;
+      }
+      return b;
+    });
     setBooks(updatedBooks);
     playChimeSound('success');
     triggerToast('Cập nhật đầu sách thành công!');
     logTransaction(`UPDATE Books SET Title = '${editBookTitle}', Author = '${editBookAuthor}' WHERE Book_ID = ${activeModalData};`, 'update');
     setModalType(null);
+
+    if (bookToUpdate) {
+      await dbUpsert('books', bookToUpdate);
+    }
   };
 
-  const handleDeleteBook = (bookId: number) => {
+  const handleDeleteBook = async (bookId: number) => {
     const updatedBooks = books.filter(b => b.Book_ID !== bookId);
     setBooks(updatedBooks);
     playChimeSound('error');
     triggerToast('Đã xóa đầu sách khỏi thư viện!');
     logTransaction(`DELETE FROM Books WHERE Book_ID = ${bookId};`, 'delete');
+
+    await dbDelete('books', { Book_ID: bookId });
   };
 
-  const handleAddNewStudent = () => {
+  const handleAddNewStudent = async () => {
     if (!editStudentName || !editStudentClass) {
       playChimeSound('error');
       triggerToast('Vui lòng điền Họ tên và Lớp học!', 'error');
@@ -512,81 +869,111 @@ export default function App() {
     }
 
     const newId = users.length > 0 ? Math.max(...users.map(u => u.User_ID)) + 1 : 1;
+    const generatedUsername = editStudentUsername || editStudentName.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d").replace(/\s+/g, "");
     const newStudent: UserType = {
       User_ID: newId,
+      Username: generatedUsername,
       Full_Name: editStudentName,
       Grade_Class: editStudentClass,
       Avatar_URL: `https://api.dicebear.com/7.x/adventurer/svg?seed=${editStudentName}`,
       Total_Points: 0,
-      Password: 'user123'
+      Password: editStudentPassword || 'user123'
     };
 
     setUsers([...users, newStudent]);
     playChimeSound('success');
     triggerToast('Tạo tài khoản học sinh thành công!');
-    logTransaction(`INSERT INTO Users VALUES (${newId}, '${editStudentName}', '${editStudentClass}', 0);`, 'insert');
+    logTransaction(`INSERT INTO Users ("User_ID", "Username", "Full_Name", "Grade_Class", "Total_Points", "Password") VALUES (${newId}, '${generatedUsername}', '${editStudentName}', '${editStudentClass}', 0, '${editStudentPassword || 'user123'}');`, 'insert');
     setModalType(null);
+
+    await dbUpsert('users', newStudent);
   };
 
   const handleEditStudentInit = (student: UserType) => {
     setActiveModalData(student.User_ID);
     setEditStudentName(student.Full_Name);
     setEditStudentClass(student.Grade_Class);
+    setEditStudentPassword(student.Password || 'user123');
+    setEditStudentUsername(student.Username || '');
     setModalType('edit_student');
   };
 
-  const handleSaveStudentEdits = () => {
-    const updatedUsers = users.map(u => 
-      u.User_ID === activeModalData 
-        ? { ...u, Full_Name: editStudentName, Grade_Class: editStudentClass } 
-        : u
-    );
+  const handleSaveStudentEdits = async () => {
+    let studentToUpdate: any = null;
+    const updatedUsers = users.map(u => {
+      if (u.User_ID === activeModalData) {
+        studentToUpdate = { ...u, Username: editStudentUsername, Full_Name: editStudentName, Grade_Class: editStudentClass, Password: editStudentPassword };
+        return studentToUpdate;
+      }
+      return u;
+    });
     setUsers(updatedUsers);
     playChimeSound('success');
     triggerToast('Cập nhật tài khoản thành công!');
-    logTransaction(`UPDATE Users SET Full_Name = '${editStudentName}', Grade_Class = '${editStudentClass}' WHERE User_ID = ${activeModalData};`, 'update');
+    logTransaction(`UPDATE Users SET Username = '${editStudentUsername}', Full_Name = '${editStudentName}', Grade_Class = '${editStudentClass}', Password = '${editStudentPassword}' WHERE User_ID = ${activeModalData};`, 'update');
     setModalType(null);
+
+    if (studentToUpdate) {
+      await dbUpsert('users', studentToUpdate);
+    }
   };
 
-  const handleDeleteStudent = (studentId: number) => {
+  const handleDeleteStudent = async (studentId: number) => {
     const updatedUsers = users.filter(u => u.User_ID !== studentId);
     setUsers(updatedUsers);
     playChimeSound('error');
     triggerToast('Đã xóa tài khoản học sinh!');
     logTransaction(`DELETE FROM Users WHERE User_ID = ${studentId};`, 'delete');
+
+    await dbDelete('users', { User_ID: studentId });
   };
 
-  const handleSaveAwardXP = () => {
-    const updatedUsers = users.map(u => 
-      u.User_ID === activeModalData 
-        ? { ...u, Total_Points: u.Total_Points + awardXpAmount } 
-        : u
-    );
+  const handleSaveAwardXP = async () => {
+    let studentToUpdate: any = null;
+    const updatedUsers = users.map(u => {
+      if (u.User_ID === activeModalData) {
+        studentToUpdate = { ...u, Total_Points: u.Total_Points + awardXpAmount };
+        return studentToUpdate;
+      }
+      return u;
+    });
     setUsers(updatedUsers);
     playChimeSound('victory');
     triggerToast(`Đã cộng thêm +${awardXpAmount} XP cho học sinh!`);
     logTransaction(`UPDATE Users SET Total_Points = Total_Points + ${awardXpAmount} WHERE User_ID = ${activeModalData}; -- Ban quản trị cộng tay`, 'update');
     setModalType(null);
+
+    if (studentToUpdate) {
+      await dbUpsert('users', studentToUpdate);
+    }
   };
 
-  const handleSaveThemeSettings = (updatedTheme: MonthlyTheme) => {
+  const handleSaveThemeSettings = async (updatedTheme: MonthlyTheme) => {
     setTheme(updatedTheme);
     playChimeSound('success');
     triggerToast('Đã cập nhật cấu hình chủ điểm sự kiện tháng!');
     logTransaction(`UPDATE Monthly_Themes SET Title = '${updatedTheme.Title}', Month_Year = '${updatedTheme.Month_Year}' WHERE Theme_ID = ${updatedTheme.Theme_ID};`, 'update');
+
+    await dbUpsert('monthly_themes', updatedTheme);
   };
 
-  const handleIncrementChallenge = (challengeId: number) => {
-    setChallenges(prev => prev.map(c => {
+  const handleIncrementChallenge = async (challengeId: number) => {
+    let challengeToUpdate: any = null;
+    const updatedChallenges = challenges.map(c => {
       if (c.Challenge_ID === challengeId && c.Current < c.Target) {
         const nextVal = c.Current + 1;
-        playChimeSound('correct');
-        triggerToast('Tăng tiến độ thử thách thành công!');
-        logTransaction(`UPDATE Challenges SET Current = ${nextVal} WHERE Challenge_ID = ${challengeId}; -- Admin cộng tiến trình`, 'update');
-        return { ...c, Current: nextVal, Completed: nextVal >= c.Target };
+        challengeToUpdate = { ...c, Current: nextVal, Completed: nextVal >= c.Target };
+        return challengeToUpdate;
       }
       return c;
-    }));
+    });
+    setChallenges(updatedChallenges);
+    if (challengeToUpdate) {
+      playChimeSound('correct');
+      triggerToast('Tăng tiến độ thử thách thành công!');
+      logTransaction(`UPDATE Challenges SET Current = ${challengeToUpdate.Current} WHERE Challenge_ID = ${challengeId}; -- Admin cộng tiến trình`, 'update');
+      await dbUpsert('challenges', challengeToUpdate);
+    }
   };
 
   // ==========================================
@@ -626,6 +1013,30 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-4 flex-wrap">
+            {/* Supabase Status Badge */}
+            <button
+              onClick={() => {
+                playChimeSound('click');
+                setIsSupabaseModalOpen(true);
+              }}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border border-dashed ${
+                supabaseStatus === 'connected'
+                  ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25'
+                  : supabaseStatus === 'connecting'
+                  ? 'bg-amber-500/15 text-amber-400 border-amber-500/30 hover:bg-amber-500/25 animate-pulse'
+                  : supabaseStatus === 'tables_missing'
+                  ? 'bg-orange-500/15 text-orange-400 border-orange-500/30 hover:bg-orange-500/25'
+                  : 'bg-rose-500/15 text-rose-400 border-rose-500/30 hover:bg-rose-500/25'
+              }`}
+            >
+              <span className="text-sm">☁️</span>
+              <span>
+                {supabaseStatus === 'connected' ? 'Supabase Connected' :
+                 supabaseStatus === 'connecting' ? 'Connecting...' :
+                 supabaseStatus === 'tables_missing' ? 'Supabase SQL Setup' : 'Supabase Error'}
+              </span>
+            </button>
+
             {/* Live Role Selector Switch */}
             <div className="bg-slate-950 p-1 rounded-2xl flex border border-slate-800">
               <button 
@@ -652,20 +1063,27 @@ export default function App() {
 
             {/* Quick Student Badge */}
             {role === 'student' && activeUser && (
-              <div className="flex items-center gap-3 bg-slate-950/70 px-3 py-1.5 rounded-2xl border border-slate-800">
+              <button 
+                onClick={() => handleTrySwitchRole('student')}
+                title="Đổi tài khoản học sinh"
+                className="flex items-center gap-3 bg-slate-950/70 hover:bg-slate-900 px-3 py-1.5 rounded-2xl border border-slate-800 transition text-left cursor-pointer group"
+              >
                 <img 
-                  className="w-8 h-8 rounded-full border border-sky-400 object-cover bg-slate-950" 
+                  className="w-8 h-8 rounded-full border border-sky-400 object-cover bg-slate-950 group-hover:scale-105 transition" 
                   src={activeUser.Avatar_URL} 
                   onError={(e) => { (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/adventurer/svg?seed=${activeUser.Full_Name}`; }}
                   alt="Avatar" 
                 />
                 <div className="hidden sm:block text-left text-xs">
-                  <div className="font-extrabold text-sky-400">{activeUser.Full_Name}</div>
+                  <div className="font-extrabold text-sky-400 flex items-center gap-1.5">
+                    <span>{activeUser.Full_Name}</span>
+                    <span className="text-[9px] text-slate-500 font-normal underline">(Đổi)</span>
+                  </div>
                   <div className="text-[10px] text-slate-400 flex items-center gap-1 font-bold">
                     <span>{activeUser.Grade_Class}</span> • <span className="text-amber-400 font-extrabold">{activeUser.Total_Points.toLocaleString()} XP</span>
                   </div>
                 </div>
-              </div>
+              </button>
             )}
           </div>
         </div>
@@ -722,6 +1140,35 @@ export default function App() {
             </>
           )}
         </div>
+
+        {/* Supabase Notice Banner */}
+        {(supabaseStatus === 'tables_missing' || supabaseStatus === 'error') && (
+          <div className="mb-6 p-4 rounded-2xl bg-orange-500/10 border border-orange-500/20 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 animate-fadeIn">
+            <div className="flex items-start gap-3">
+              <span className="text-2xl mt-0.5">☁️</span>
+              <div>
+                <h5 className="font-extrabold text-sm text-orange-600 uppercase">
+                  {supabaseStatus === 'tables_missing' ? 'Yêu cầu khởi tạo SQL trên Supabase' : 'Lỗi kết nối đến Supabase'}
+                </h5>
+                <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                  {supabaseStatus === 'tables_missing' 
+                    ? 'Bạn cần sao chép và thực thi câu lệnh SQL khởi tạo trên Supabase Dashboard để kích hoạt đồng bộ dữ liệu.'
+                    : `Hệ thống gặp sự cố khi đồng bộ: ${supabaseErrorMsg}. Vui lòng kiểm tra lại cấu hình.`
+                  }
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                playChimeSound('click');
+                setIsSupabaseModalOpen(true);
+              }}
+              className="bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl transition shadow-sm w-full sm:w-auto shrink-0"
+            >
+              📋 Lấy mã SQL &amp; Hướng dẫn setup
+            </button>
+          </div>
+        )}
 
         {/* Dynamic View Component */}
         <div className="min-h-[50vh] transition-all duration-300">
@@ -1335,6 +1782,8 @@ export default function App() {
                   onAddStudent={() => {
                     setEditStudentName('');
                     setEditStudentClass('');
+                    setEditStudentPassword('user123');
+                    setEditStudentUsername('');
                     setModalType('add_student');
                   }}
                   onEditStudent={handleEditStudentInit}
@@ -1366,13 +1815,6 @@ export default function App() {
         </div>
       </main>
 
-      {/* 3. FLOATING DATABASE SYNC MONITOR WIDGET */}
-      <SqlMonitor 
-        logs={logs} 
-        onClearLogs={() => setLogs([])}
-        onExecuteSQL={handleExecuteSqlConsole}
-      />
-
       {/* 4. FOOTER CREDITS INFO */}
       <footer className="bg-slate-950 text-slate-400 py-6 text-center border-t border-slate-800 mt-12 text-xs">
         <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-4">
@@ -1396,65 +1838,220 @@ export default function App() {
       {modalType && (
         <div className="fixed inset-0 bg-slate-950/70 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
           
-          {/* Admin Switch Authenticator Form */}
-          {modalType === 'admin_auth' && (
-            <form onSubmit={handleAdminAuthSubmit} className="bg-slate-900 border border-slate-800 text-white rounded-3xl w-full max-w-sm p-6 overflow-hidden shadow-2xl space-y-4">
-              <div className="text-center">
-                <span className="text-4xl">🔐</span>
-                <h4 class="font-extrabold text-sm text-white mt-2">ĐĂNG NHẬP QUẢN TRỊ</h4>
-                <p className="text-xs text-slate-400 mt-1">Cung cấp mật khẩu quản trị hệ thống</p>
+          {/* Unified beautiful Student & Admin login modal */}
+          {modalType === 'auth_login' && (
+            <div className="bg-slate-900 border border-slate-800 text-white rounded-3xl w-full max-w-md p-6 overflow-hidden shadow-2xl relative animate-fadeIn space-y-5">
+              
+              {/* Top Close Button */}
+              <button 
+                onClick={() => setModalType(null)}
+                className="absolute top-4 right-4 text-slate-400 hover:text-white transition p-1 rounded-full hover:bg-slate-800"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              {/* Header Info */}
+              <div className="text-center space-y-1 mt-2">
+                <div className="w-12 h-12 rounded-2xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center mx-auto mb-2 text-sky-400 shadow-lg shadow-sky-500/5">
+                  <Shield className="w-6 h-6 animate-pulse" />
+                </div>
+                <h4 className="font-extrabold text-base text-white tracking-tight uppercase">Cổng đăng nhập Biblio-Hub</h4>
+                <p className="text-xs text-slate-400">Vui lòng đăng nhập để tiếp tục học tập và quản lý</p>
               </div>
 
-              <div className="space-y-3.5 text-xs text-left">
-                <div>
-                  <label className="block text-slate-400 font-bold mb-1.5">Tài khoản quản trị</label>
-                  <input 
-                    type="text" 
-                    value={adminUsername}
-                    onChange={(e) => setAdminUsername(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-slate-700 bg-slate-950 text-white focus:outline-none focus:ring-1 focus:ring-sky-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-400 font-bold mb-1.5">Mật khẩu bảo mật</label>
-                  <input 
-                    type="password" 
-                    placeholder="••••••••"
-                    value={adminPassword}
-                    onChange={(e) => setAdminPassword(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-slate-700 bg-slate-950 text-white focus:outline-none focus:ring-1 focus:ring-sky-500"
-                  />
-                </div>
-
-                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-[10px] text-sky-400 space-y-1 font-mono">
-                  <span className="font-bold text-slate-300">💡 Thông tin mẫu để trải nghiệm:</span>
-                  <div>• Tài khoản: <span className="text-white font-bold">admin</span></div>
-                  <div>• Mật khẩu: <span className="text-white font-bold">admin123</span></div>
-                </div>
-
-                {authError && (
-                  <p className="text-rose-500 font-extrabold text-[11px] text-center">
-                    ❌ Sai tài khoản hoặc mật khẩu!
-                  </p>
-                )}
-              </div>
-
-              <div className="flex gap-2 text-xs">
-                <button 
-                  type="button" 
-                  onClick={() => setModalType(null)}
-                  className="w-1/2 bg-slate-800 hover:bg-slate-700 text-white font-bold py-2.5 rounded-xl transition"
+              {/* Tab Selector */}
+              <div className="grid grid-cols-2 bg-slate-950 p-1 rounded-2xl border border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    playChimeSound('click');
+                    setLoginModalTab('student');
+                    setAuthError(false);
+                  }}
+                  className={`py-2 rounded-xl text-xs font-bold transition-all duration-300 flex items-center justify-center gap-2 ${
+                    loginModalTab === 'student'
+                      ? 'bg-sky-500 text-slate-950 shadow-md shadow-sky-500/10'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
                 >
-                  Hủy bỏ
+                  <GraduationCap className="w-4 h-4" />
+                  Học Sinh
                 </button>
-                <button 
-                  type="submit"
-                  className="w-1/2 bg-sky-500 hover:bg-sky-600 text-slate-950 font-extrabold py-2.5 rounded-xl transition shadow-lg shadow-sky-500/10"
+                <button
+                  type="button"
+                  onClick={() => {
+                    playChimeSound('click');
+                    setLoginModalTab('admin');
+                    setAuthError(false);
+                  }}
+                  className={`py-2 rounded-xl text-xs font-bold transition-all duration-300 flex items-center justify-center gap-2 ${
+                    loginModalTab === 'admin'
+                      ? 'bg-sky-500 text-slate-950 shadow-md shadow-sky-500/10'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
                 >
-                  Đăng nhập
+                  <Lock className="w-3.5 h-3.5" />
+                  Quản Trị Viên
                 </button>
               </div>
-            </form>
+
+              {/* Login forms */}
+              {loginModalTab === 'student' ? (
+                <form onSubmit={handleStudentLoginSubmit} className="space-y-4">
+                  <div className="space-y-3 text-xs text-left">
+                    <div>
+                      <label className="block text-slate-400 font-bold mb-1.5 flex items-center gap-1.5">
+                        <User className="w-3.5 h-3.5 text-sky-400" />
+                        Tên đăng nhập (Username)
+                      </label>
+                      <input 
+                        type="text" 
+                        required
+                        placeholder="VD: lamanh, minhquan..."
+                        value={studentUsernameInput}
+                        onChange={(e) => setStudentUsernameInput(e.target.value)}
+                        className="w-full p-2.5 pl-3 rounded-xl border border-slate-700 bg-slate-950 text-white font-semibold focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/15 transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 font-bold mb-1.5 flex items-center gap-1.5">
+                        <Lock className="w-3.5 h-3.5 text-sky-400" />
+                        Mật khẩu cá nhân
+                      </label>
+                      <input 
+                        type="password" 
+                        required
+                        placeholder="Nhập mật khẩu của em..."
+                        value={studentPasswordInput}
+                        onChange={(e) => setStudentPasswordInput(e.target.value)}
+                        className="w-full p-2.5 pl-3 rounded-xl border border-slate-700 bg-slate-950 text-white font-semibold focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/15 transition-all"
+                      />
+                    </div>
+
+                    {authError && (
+                      <p className="text-rose-500 font-extrabold text-[11px] text-center bg-rose-500/10 py-1.5 rounded-xl border border-rose-500/20">
+                        ❌ Sai tên đăng nhập hoặc mật khẩu học sinh!
+                      </p>
+                    )}
+
+                    {/* Quick select credential shelf */}
+                    <div className="bg-slate-950 p-3.5 rounded-2xl border border-slate-800 space-y-2">
+                      <div className="flex items-center gap-1.5 text-[10.5px] font-bold text-sky-400">
+                        <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Danh sách Học sinh (Chọn nhanh để tự điền):</span>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-2 max-h-36 overflow-y-auto pr-1 scrollbar-thin">
+                        {users.map((usr) => (
+                          <button
+                            key={usr.User_ID}
+                            type="button"
+                            onClick={() => {
+                              setStudentUsernameInput(usr.Username || '');
+                              setStudentPasswordInput(usr.Password || 'user123');
+                              setAuthError(false);
+                              playChimeSound('click');
+                            }}
+                            className="flex items-center gap-2 p-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-sky-500/40 text-left transition duration-200 group"
+                          >
+                            <img
+                              src={usr.Avatar_URL}
+                              onError={(e) => { (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/adventurer/svg?seed=${usr.Full_Name}`; }}
+                              className="w-7 h-7 rounded-full border border-slate-700 bg-slate-950 shrink-0"
+                              alt="avatar"
+                            />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[9.5px] font-extrabold text-white truncate group-hover:text-sky-400 transition">{usr.Full_Name}</p>
+                              <p className="text-[8px] text-slate-400 font-medium font-mono">{usr.Username} ({usr.Password || 'user123'})</p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Submit Button */}
+                  <div className="flex gap-2 text-xs pt-1">
+                    <button 
+                      type="button" 
+                      onClick={() => setModalType(null)}
+                      className="w-1/3 bg-slate-800 hover:bg-slate-700 text-white font-bold py-2.5 rounded-xl transition"
+                    >
+                      Hủy bỏ
+                    </button>
+                    <button 
+                      type="submit"
+                      className="w-2/3 bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold py-2.5 rounded-xl transition shadow-lg shadow-sky-500/15 flex items-center justify-center gap-1.5 hover:scale-[1.02] duration-200"
+                    >
+                      <GraduationCap className="w-4 h-4 text-slate-950" />
+                      Đăng Nhập Học Sinh
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <form onSubmit={handleAdminAuthSubmit} className="space-y-4">
+                  <div className="space-y-3 text-xs text-left">
+                    <div>
+                      <label className="block text-slate-400 font-bold mb-1.5 flex items-center gap-1.5">
+                        <User className="w-3.5 h-3.5 text-sky-400" />
+                        Tài khoản Quản trị
+                      </label>
+                      <input 
+                        type="text" 
+                        required
+                        value={adminUsername}
+                        onChange={(e) => setAdminUsername(e.target.value)}
+                        className="w-full p-2.5 pl-3 rounded-xl border border-slate-700 bg-slate-950 text-white font-semibold focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/15 transition-all"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-slate-400 font-bold mb-1.5 flex items-center gap-1.5">
+                        <Lock className="w-3.5 h-3.5 text-sky-400" />
+                        Mật khẩu bảo mật
+                      </label>
+                      <input 
+                        type="password" 
+                        required
+                        placeholder="••••••••"
+                        value={adminPassword}
+                        onChange={(e) => setAdminPassword(e.target.value)}
+                        className="w-full p-2.5 pl-3 rounded-xl border border-slate-700 bg-slate-950 text-white font-semibold focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/15 transition-all"
+                      />
+                    </div>
+
+                    {authError && (
+                      <p className="text-rose-500 font-extrabold text-[11px] text-center bg-rose-500/10 py-1.5 rounded-xl border border-rose-500/20">
+                        ❌ Sai tài khoản hoặc mật khẩu Quản trị!
+                      </p>
+                    )}
+
+                    <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-[10px] text-sky-400 space-y-1 font-mono">
+                      <span className="font-bold text-slate-300">💡 Thông tin mẫu để trải nghiệm:</span>
+                      <div>• Tài khoản: <span className="text-white font-bold">admin</span></div>
+                      <div>• Mật khẩu: <span className="text-white font-bold">admin123</span></div>
+                    </div>
+                  </div>
+
+                  {/* Submit Button */}
+                  <div className="flex gap-2 text-xs pt-2">
+                    <button 
+                      type="button" 
+                      onClick={() => setModalType(null)}
+                      className="w-1/3 bg-slate-800 hover:bg-slate-700 text-white font-bold py-2.5 rounded-xl transition"
+                    >
+                      Hủy bỏ
+                    </button>
+                    <button 
+                      type="submit"
+                      className="w-2/3 bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold py-2.5 rounded-xl transition shadow-lg shadow-sky-500/15 flex items-center justify-center gap-1.5 hover:scale-[1.02] duration-200"
+                    >
+                      <Lock className="w-3.5 h-3.5 text-slate-950" />
+                      Đăng Nhập Quản Trị
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
           )}
 
           {/* Ebook Reader Simulator panel */}
@@ -1790,6 +2387,16 @@ export default function App() {
                   />
                 </div>
                 <div>
+                  <label className="block text-slate-400 font-bold mb-1">Tên đăng nhập (Username)</label>
+                  <input 
+                    type="text" 
+                    value={editStudentUsername}
+                    onChange={(e) => setEditStudentUsername(e.target.value)}
+                    placeholder="Để trống tự sinh (VD: nguyenb)"
+                    className="w-full p-2.5 rounded-xl border border-slate-700 bg-slate-950 text-white font-mono" 
+                  />
+                </div>
+                <div>
                   <label className="block text-slate-400 font-bold mb-1">Lớp học</label>
                   <input 
                     type="text" 
@@ -1797,6 +2404,16 @@ export default function App() {
                     onChange={(e) => setEditStudentClass(e.target.value)}
                     placeholder="VD: Lớp 5D"
                     className="w-full p-2.5 rounded-xl border border-slate-700 bg-slate-950 text-white" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-400 font-bold mb-1">Mật khẩu cấp mới</label>
+                  <input 
+                    type="text" 
+                    value={editStudentPassword}
+                    onChange={(e) => setEditStudentPassword(e.target.value)}
+                    placeholder="VD: user123"
+                    className="w-full p-2.5 rounded-xl border border-slate-700 bg-slate-950 text-white font-mono" 
                   />
                 </div>
               </div>
@@ -1827,12 +2444,31 @@ export default function App() {
                   />
                 </div>
                 <div>
+                  <label className="block text-slate-400 font-bold mb-1">Tên đăng nhập (Username)</label>
+                  <input 
+                    type="text" 
+                    value={editStudentUsername}
+                    onChange={(e) => setEditStudentUsername(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-slate-700 bg-slate-950 text-white font-mono" 
+                  />
+                </div>
+                <div>
                   <label className="block text-slate-400 font-bold mb-1">Lớp học</label>
                   <input 
                     type="text" 
                     value={editStudentClass}
                     onChange={(e) => setEditStudentClass(e.target.value)}
                     className="w-full p-2.5 rounded-xl border border-slate-700 bg-slate-950 text-white" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-400 font-bold mb-1">Mật khẩu</label>
+                  <input 
+                    type="text" 
+                    value={editStudentPassword}
+                    onChange={(e) => setEditStudentPassword(e.target.value)}
+                    placeholder="Mật khẩu học sinh..."
+                    className="w-full p-2.5 rounded-xl border border-slate-700 bg-slate-950 text-white font-mono" 
                   />
                 </div>
               </div>
@@ -1869,6 +2505,129 @@ export default function App() {
 
         </div>
       )}
+
+      {/* Supabase Connection Setup & Synchronization Center Modal */}
+      {isSupabaseModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-fadeIn">
+          <div className="bg-slate-900 border border-slate-800 text-white rounded-3xl w-full max-w-2xl p-6 overflow-hidden shadow-2xl space-y-4 flex flex-col max-h-[90vh]">
+            
+            <div className="flex justify-between items-center border-b border-slate-800 pb-3 shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">☁️</span>
+                <div>
+                  <h4 className="font-extrabold text-sm text-white">SUPABASE CLOUD SYNC CENTER</h4>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Đồng bộ hóa dữ liệu đám mây thời gian thực</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsSupabaseModalOpen(false)} 
+                className="bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-full p-1.5 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs text-left overflow-y-auto pr-1 scrollbar-thin">
+              {/* Status Card */}
+              <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800/80 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                  <div className="text-slate-400 font-bold mb-1">Trạng thái kết nối Supabase:</div>
+                  <div className="flex items-center gap-2">
+                    <span className={`h-2.5 w-2.5 rounded-full ${
+                      supabaseStatus === 'connected' ? 'bg-emerald-500 animate-pulse' :
+                      supabaseStatus === 'connecting' ? 'bg-amber-500 animate-pulse' :
+                      supabaseStatus === 'tables_missing' ? 'bg-orange-500' : 'bg-rose-500'
+                    }`} />
+                    <span className="font-bold text-xs uppercase tracking-wider">
+                      {supabaseStatus === 'connected' && 'ĐÃ ĐỒNG BỘ ĐÁM MÂY (CONNECTED)'}
+                      {supabaseStatus === 'connecting' && 'ĐANG THỰC HIỆN ĐỒNG BỘ...'}
+                      {supabaseStatus === 'tables_missing' && 'CHƯA KHỞI TẠO BẢNG (TABLES MISSING)'}
+                      {supabaseStatus === 'error' && 'LỖI KẾT NỐI (CONNECTION ERROR)'}
+                    </span>
+                  </div>
+                  <p className="text-[9px] text-slate-500 mt-1 font-mono break-all max-w-sm sm:max-w-md">
+                    Project URL: https://hkfatixdccnlsjxfacdl.supabase.co
+                  </p>
+                </div>
+
+                <div className="flex gap-2 shrink-0 w-full sm:w-auto">
+                  <button
+                    onClick={loadDataFromSupabase}
+                    disabled={supabaseStatus === 'connecting'}
+                    className="w-full sm:w-auto bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-white font-bold px-3 py-2 rounded-xl text-[10px] transition"
+                  >
+                    🔄 Tải từ Cloud
+                  </button>
+                  <button
+                    onClick={pushDataToSupabase}
+                    disabled={supabaseStatus === 'connecting'}
+                    className="w-full sm:w-auto bg-sky-500 hover:bg-sky-400 disabled:opacity-50 text-slate-950 font-extrabold px-3 py-2 rounded-xl text-[10px] transition"
+                    title="Ghi đè/Đẩy dữ liệu hiện tại lên Supabase"
+                  >
+                    ☁️ Đẩy lên Cloud
+                  </button>
+                </div>
+              </div>
+
+              {supabaseStatus === 'tables_missing' && (
+                <div className="p-3 bg-orange-500/10 border border-orange-500/20 text-orange-400 rounded-2xl text-[11px] leading-relaxed">
+                  ⚠️ <strong>Chú ý:</strong> Kết nối đến dự án Supabase thành công, nhưng hệ thống không tìm thấy bảng <code>users</code>. Bạn hãy làm theo các bước bên dưới để tạo cấu trúc dữ liệu!
+                </div>
+              )}
+
+              {supabaseStatus === 'error' && (
+                <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-400 rounded-2xl text-[11px] font-mono whitespace-pre-wrap">
+                  ❌ Lỗi: {supabaseErrorMsg}
+                </div>
+              )}
+
+              {/* Instruction Steps */}
+              <div className="space-y-2">
+                <h5 className="font-black text-[11px] text-sky-400 flex items-center gap-1.5 uppercase">
+                  <span>🛠️</span> Các bước thiết lập Supabase SQL
+                </h5>
+                <ol className="list-decimal list-inside space-y-1 text-slate-300 bg-slate-950 p-3.5 rounded-2xl border border-slate-800/60 leading-relaxed text-[11px]">
+                  <li>Truy cập vào <strong>Supabase Dashboard</strong> của bạn.</li>
+                  <li>Chọn menu <strong>SQL Editor</strong> ở thanh công cụ bên trái.</li>
+                  <li>Bấm <strong>New Query</strong> để tạo một trang soạn thảo mới.</li>
+                  <li>Copy toàn bộ mã lệnh SQL bên dưới, dán vào khung soạn thảo và bấm <strong>Run</strong>.</li>
+                  <li>Quay lại đây bấm nút <strong>☁️ Đẩy lên Cloud</strong> hoặc <strong>🔄 Tải từ Cloud</strong> để bắt đầu sử dụng!</li>
+                </ol>
+              </div>
+
+              {/* SQL Code Box */}
+              <div className="space-y-2 flex-grow flex flex-col">
+                <div className="flex justify-between items-center">
+                  <span className="font-extrabold text-[10px] text-emerald-400 uppercase tracking-widest">📄 MÃ LỆNH KHỞI TẠO BẢNG &amp; SEED DATA</span>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(SUPABASE_SQL_SCHEMA);
+                      triggerToast('Đã sao chép mã lệnh SQL!');
+                    }}
+                    className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold px-2.5 py-1 rounded-lg text-[10px] transition"
+                  >
+                    📋 Copy Mã SQL
+                  </button>
+                </div>
+                <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800/80 font-mono text-[10px] text-slate-300 overflow-y-auto max-h-[180px] whitespace-pre select-all scrollbar-thin">
+                  {SUPABASE_SQL_SCHEMA}
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-slate-800 flex justify-end shrink-0">
+              <button
+                onClick={() => setIsSupabaseModalOpen(false)}
+                className="bg-sky-500 hover:bg-sky-400 text-slate-950 font-black px-5 py-2 rounded-xl text-xs transition shadow-md"
+              >
+                Đóng Bảng Điều Khiển
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
 
       {/* 6. TOAST MESSAGE FEEDBACK */}
       {toast && (

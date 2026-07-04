@@ -287,7 +287,9 @@ export function AdminStudentsView({ students, onAddStudent, onEditStudent, onDel
               <tr className="bg-slate-950 border-b border-slate-800 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
                 <th className="px-4 py-3">Mã Học Sinh</th>
                 <th className="px-4 py-3">Họ và Tên</th>
+                <th className="px-4 py-3">Tên đăng nhập</th>
                 <th className="px-4 py-3">Lớp học</th>
+                <th className="px-4 py-3">Mật khẩu</th>
                 <th className="px-4 py-3">Tích Lũy Thi Đua</th>
                 <th className="px-4 py-3 text-right">Thao Tác</th>
               </tr>
@@ -305,7 +307,13 @@ export function AdminStudentsView({ students, onAddStudent, onEditStudent, onDel
                     />
                     <span className="font-bold text-xs text-slate-200">{usr.Full_Name}</span>
                   </td>
+                  <td className="px-4 py-3.5">
+                    <span className="font-mono text-emerald-400 font-semibold bg-emerald-500/10 rounded px-2 py-1 border border-emerald-500/20">
+                      {usr.Username || 'chưa_có'}
+                    </span>
+                  </td>
                   <td className="px-4 py-3.5 text-slate-300 font-medium">{usr.Grade_Class}</td>
+                  <td className="px-4 py-3.5 font-mono text-slate-400 font-semibold">{usr.Password || '(Chưa cài)'}</td>
                   <td className="px-4 py-3.5 text-amber-400 font-extrabold">{usr.Total_Points.toLocaleString()} XP</td>
                   <td className="px-4 py-3.5 text-right">
                     <div className="flex justify-end gap-1.5 font-semibold">

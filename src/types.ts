@@ -1,5 +1,6 @@
 export interface User {
   User_ID: number;
+  Username?: string;
   Full_Name: string;
   Grade_Class: string;
   Avatar_URL: string;

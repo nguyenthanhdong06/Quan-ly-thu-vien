@@ -3,6 +3,7 @@ import { User, Book, MonthlyTheme, UserBookInteraction, Challenge, Badge } from 
 export const INITIAL_USERS: User[] = [
   { 
     User_ID: 1, 
+    Username: "lamanh",
     Full_Name: "Nguyễn Lâm Anh", 
     Grade_Class: "Lớp 5A", 
     Avatar_URL: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150", 
@@ -11,6 +12,7 @@ export const INITIAL_USERS: User[] = [
   },
   { 
     User_ID: 2, 
+    Username: "minhquan",
     Full_Name: "Trần Minh Quân", 
     Grade_Class: "Lớp 4B", 
     Avatar_URL: "https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150", 
@@ -19,6 +21,7 @@ export const INITIAL_USERS: User[] = [
   },
   { 
     User_ID: 3, 
+    Username: "myhuyen",
     Full_Name: "Lê Mỹ Huyền", 
     Grade_Class: "Lớp 5C", 
     Avatar_URL: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150", 
