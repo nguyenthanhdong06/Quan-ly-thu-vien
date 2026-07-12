@@ -10,7 +10,7 @@ import {
 } from './data';
 import { User as UserType, Book, MonthlyTheme, UserBookInteraction, Challenge, Badge, LogEntry } from './types';
 import { executeVirtualSQL } from './sqlEngine';
-import { supabase } from './supabase';
+import { supabase, supabaseUrl } from './supabase';
 
 const SUPABASE_SQL_SCHEMA = `-- =========================================================================
 -- SQL SETUP FOR SUPABASE PLAYGROUND - BOOK READING APP
@@ -285,7 +285,7 @@ export default function App() {
   // ==========================================
   // SUPABASE CLOUD FUNCTIONS
   // ==========================================
-  const loadDataFromSupabase = async () => {
+  const loadDataFromSupabase = async (showModalOnError: boolean = false) => {
     setSupabaseStatus('connecting');
     try {
       // 1. Check users table
@@ -309,8 +309,10 @@ export default function App() {
 
         if (isTableMissing) {
           setSupabaseStatus('tables_missing');
-          setSupabaseErrorMsg('Các bảng chưa được tạo hoặc bị thiếu trên Supabase. Vui lòng bấm vào đây để xem hướng dẫn thiết lập SQL!');
-          setIsSupabaseModalOpen(true);
+          setSupabaseErrorMsg('Các bảng chưa được tạo hoặc bị thiếu trên Supabase. Vui lòng bấm vào nút cấu hình để xem hướng dẫn thiết lập SQL!');
+          if (showModalOnError) {
+            setIsSupabaseModalOpen(true);
+          }
           return false;
         }
         throw anyTableError;
@@ -329,15 +331,29 @@ export default function App() {
       return true;
     } catch (err: any) {
       console.error('Supabase fetch error:', err);
-      const errStr = (err.message || '').toLowerCase();
+      const rawMsg = err.message || '';
+      let isFetchError = false;
+      if (rawMsg.includes('Failed to fetch') || rawMsg.includes('fetch') || !navigator.onLine) {
+        isFetchError = true;
+      }
+      
+      const errStr = rawMsg.toLowerCase();
       if (err.code === '42P01' || errStr.includes('relation') || errStr.includes('does not exist') || errStr.includes('not found')) {
         setSupabaseStatus('tables_missing');
         setSupabaseErrorMsg('Các bảng chưa được tạo hoặc bị thiếu trên Supabase. Vui lòng xem hướng dẫn SQL!');
-        setIsSupabaseModalOpen(true);
+        if (showModalOnError) {
+          setIsSupabaseModalOpen(true);
+        }
       } else {
         setSupabaseStatus('error');
-        setSupabaseErrorMsg(err.message || 'Lỗi kết nối đến Supabase');
-        setIsSupabaseModalOpen(true);
+        if (isFetchError) {
+          setSupabaseErrorMsg('Không thể kết nối tới Supabase (Failed to fetch). Nguyên nhân phổ biến: Dự án Supabase của bạn đã bị TẠM NGƯNG (Paused) do lâu ngày không hoạt động, bị chặn bởi AdBlocker, hoặc sai cấu hình URL / Key.');
+        } else {
+          setSupabaseErrorMsg(err.message || 'Lỗi kết nối đến Supabase');
+        }
+        if (showModalOnError) {
+          setIsSupabaseModalOpen(true);
+        }
       }
       logTransaction(`SUPABASE_ERROR: Lỗi đồng bộ: ${err.message}`, 'error');
       return false;
@@ -409,7 +425,7 @@ export default function App() {
     logTransaction(`SELECT * FROM Monthly_Themes WHERE Theme_ID = 101; -- Đồng bộ sự kiện tháng`, 'select');
     
     // Auto-sync from Supabase on start
-    loadDataFromSupabase();
+    loadDataFromSupabase(false);
   }, []);
 
 
@@ -2919,13 +2935,13 @@ export default function App() {
                     </span>
                   </div>
                   <p className="text-[9px] text-slate-500 mt-1 font-mono break-all max-w-sm sm:max-w-md">
-                    Project URL: https://hkfatixdccnlsjxfacdl.supabase.co
+                    Project URL: {supabaseUrl}
                   </p>
                 </div>
 
                 <div className="flex gap-2 shrink-0 w-full sm:w-auto">
                   <button
-                    onClick={loadDataFromSupabase}
+                    onClick={() => loadDataFromSupabase(true)}
                     disabled={supabaseStatus === 'connecting'}
                     className="w-full sm:w-auto bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-white font-bold px-3 py-2 rounded-xl text-[10px] transition"
                   >
