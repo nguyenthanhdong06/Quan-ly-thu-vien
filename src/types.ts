@@ -17,6 +17,7 @@ export interface Book {
   Target_Grade: string;
   Book_Type: 'Ebook' | 'Audio';
   Content_URL: string;
+  Theme?: string;
 }
 
 export interface MonthlyTheme {

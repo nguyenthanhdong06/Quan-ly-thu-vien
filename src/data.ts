@@ -59,7 +59,8 @@ export const INITIAL_BOOKS: Book[] = [
     Category: "Khoa học", 
     Target_Grade: "Lớp 4-5", 
     Book_Type: "Ebook", 
-    Content_URL: "#" 
+    Content_URL: "#",
+    Theme: "Đại Dương"
   },
   { 
     Book_ID: 4, 
@@ -69,7 +70,8 @@ export const INITIAL_BOOKS: Book[] = [
     Category: "Khoa học", 
     Target_Grade: "Lớp 5", 
     Book_Type: "Ebook", 
-    Content_URL: "#" 
+    Content_URL: "#",
+    Theme: "Vũ Trụ"
   },
   { 
     Book_ID: 5, 
@@ -93,6 +95,30 @@ export const INITIAL_THEME: MonthlyTheme = {
   Media_Video: "Video: Thám hiểm rạn san hô kỳ ảo",
   Media_MiniGame: "Trò chơi dọn rác cứu sinh vật biển"
 };
+
+export const INITIAL_THEMES: MonthlyTheme[] = [
+  INITIAL_THEME,
+  {
+    Theme_ID: 102,
+    Month_Year: "11/2026",
+    Title: "Vũ Trụ Bao La",
+    Banner_Image: "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1000",
+    Description: "Khám phá các hành tinh xa xôi, các ngôi sao lấp lánh và tìm hiểu về các phi hành gia dũng cảm!",
+    Media_Podcast: "Podcast: Hành trình đến Sao Hỏa",
+    Media_Video: "Video: Hệ Mặt Trời của chúng ta",
+    Media_MiniGame: "Trò chơi lái phi thuyền tránh thiên thạch"
+  },
+  {
+    Theme_ID: 103,
+    Month_Year: "12/2026",
+    Title: "Môi Trường Xanh",
+    Banner_Image: "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=1000",
+    Description: "Tìm hiểu các giải pháp bảo vệ Trái Đất, trồng thêm cây xanh và giảm thiểu rác thải nhựa!",
+    Media_Podcast: "Podcast: Trái Đất đang ấm lên như thế nào?",
+    Media_Video: "Video: Vòng tuần hoàn của rác thải",
+    Media_MiniGame: "Trò chơi phân loại rác tái chế"
+  }
+];
 
 export const INITIAL_INTERACTIONS: UserBookInteraction[] = [
   { Interaction_ID: 1, User_ID: 1, Book_ID: 1, Is_Favorite: true, Reading_Progress: 75, Status: "Đang đọc" },

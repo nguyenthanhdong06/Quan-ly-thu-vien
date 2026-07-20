@@ -1,5 +1,5 @@
 import React from 'react';
-import { BookOpen, User, Award, BarChart2, Plus, Edit, Trash2, ShieldAlert, Sparkles, Trophy } from 'lucide-react';
+import { BookOpen, User, Award, BarChart2, Plus, Edit, Trash2, ShieldAlert, Sparkles, Trophy, Upload } from 'lucide-react';
 import { Book, User as UserType, Challenge, MonthlyTheme, UserBookInteraction } from '../types';
 
 // ==========================================
@@ -104,10 +104,22 @@ export function AdminBooksView({ books, onAddBook, onEditBook, onDeleteBook }: A
 // ==========================================
 interface AdminThemeViewProps {
   theme: MonthlyTheme;
+  themes: MonthlyTheme[];
   onSaveTheme: (updatedTheme: MonthlyTheme) => void;
+  onSetActiveTheme: (theme: MonthlyTheme) => void;
+  onAddTheme: (newTheme: MonthlyTheme) => void;
 }
 
-export function AdminThemeView({ theme, onSaveTheme }: AdminThemeViewProps) {
+export function AdminThemeView({ 
+  theme, 
+  themes, 
+  onSaveTheme, 
+  onSetActiveTheme, 
+  onAddTheme 
+}: AdminThemeViewProps) {
+  const [selectedTheme, setSelectedTheme] = React.useState<MonthlyTheme>(theme);
+  const [isAddingNew, setIsAddingNew] = React.useState(false);
+
   const [title, setTitle] = React.useState(theme.Title);
   const [date, setDate] = React.useState(theme.Month_Year);
   const [banner, setBanner] = React.useState(theme.Banner_Image);
@@ -116,132 +128,294 @@ export function AdminThemeView({ theme, onSaveTheme }: AdminThemeViewProps) {
   const [video, setVideo] = React.useState(theme.Media_Video);
   const [minigame, setMinigame] = React.useState(theme.Media_MiniGame);
 
+  // Sync state if selected theme changes or add new state triggered
+  React.useEffect(() => {
+    if (!isAddingNew) {
+      setTitle(selectedTheme.Title);
+      setDate(selectedTheme.Month_Year);
+      setBanner(selectedTheme.Banner_Image);
+      setDesc(selectedTheme.Description);
+      setPodcast(selectedTheme.Media_Podcast);
+      setVideo(selectedTheme.Media_Video);
+      setMinigame(selectedTheme.Media_MiniGame);
+    }
+  }, [selectedTheme, isAddingNew]);
+
+  const handleBannerUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Check size < 3MB
+    if (file.size > 3 * 1024 * 1024) {
+      alert("Kích thước ảnh quá lớn! Vui lòng chọn ảnh nhỏ hơn 3MB.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64String = event.target?.result as string;
+      if (base64String) {
+        setBanner(base64String);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSaveTheme({
-      Theme_ID: theme.Theme_ID,
-      Month_Year: date,
-      Title: title,
-      Banner_Image: banner,
-      Description: desc,
-      Media_Podcast: podcast,
-      Media_Video: video,
-      Media_MiniGame: minigame
-    });
+    if (isAddingNew) {
+      const newId = themes.length > 0 ? Math.max(...themes.map(t => t.Theme_ID)) + 1 : 101;
+      const newThemeObj: MonthlyTheme = {
+        Theme_ID: newId,
+        Month_Year: date,
+        Title: title,
+        Banner_Image: banner || 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1000',
+        Description: desc,
+        Media_Podcast: podcast || 'Podcast chưa cập nhật',
+        Media_Video: video || 'Video chưa cập nhật',
+        Media_MiniGame: minigame || 'Trò chơi chưa cập nhật'
+      };
+      onAddTheme(newThemeObj);
+      setIsAddingNew(false);
+      setSelectedTheme(newThemeObj);
+    } else {
+      const updatedThemeObj: MonthlyTheme = {
+        Theme_ID: selectedTheme.Theme_ID,
+        Month_Year: date,
+        Title: title,
+        Banner_Image: banner,
+        Description: desc,
+        Media_Podcast: podcast,
+        Media_Video: video,
+        Media_MiniGame: minigame
+      };
+      onSaveTheme(updatedThemeObj);
+      setSelectedTheme(updatedThemeObj);
+    }
+  };
+
+  const handleAddNewClick = () => {
+    setIsAddingNew(true);
+    setTitle('Chủ điểm mới');
+    setDate('11/2026');
+    setBanner('https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=1000');
+    setDesc('Mô tả cho chủ điểm mới...');
+    setPodcast('Podcast chủ điểm mới');
+    setVideo('Video chủ điểm mới');
+    setMinigame('Trò chơi chủ điểm mới');
   };
 
   return (
-    <div className="space-y-6 text-white">
-      <div>
-        <h3 className="text-base font-extrabold flex items-center gap-2">
-          <span>🎨</span> CẤU HÌNH CHỦ ĐIỂM SỰ KIỆN THÁNG (Table: Monthly_Themes)
-        </h3>
-        <p className="text-xs text-slate-400">Thay đổi chủ đề truyền thông, banner sự kiện và liên kết bài học tương tác</p>
+    <div className="space-y-6 text-white animate-fadeIn">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h3 className="text-base font-extrabold flex items-center gap-2">
+            <span>🎨</span> QUẢN LÝ CHỦ ĐIỂM SỰ KIỆN (Table: Monthly_Themes)
+          </h3>
+          <p className="text-xs text-slate-400">Xem danh sách, chỉnh sửa chi tiết hoặc thêm chủ điểm sự kiện mới</p>
+        </div>
+        <button
+          onClick={handleAddNewClick}
+          className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold px-4 py-2.5 rounded-xl text-xs flex items-center gap-1.5 transition duration-200 shadow-md"
+        >
+          <span>➕</span> Thêm chủ điểm mới
+        </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Settings Panel */}
-        <form onSubmit={handleFormSubmit} className="lg:col-span-2 bg-slate-900 p-5 border border-slate-800 rounded-2xl space-y-4 text-xs">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-slate-400 font-bold mb-1.5">Tên chủ điểm sự kiện</label>
-              <input 
-                type="text" 
-                value={title} 
-                onChange={(e) => setTitle(e.target.value)}
-                className="w-full p-2.5 rounded-xl border border-slate-700 bg-slate-950 text-white focus:outline-none focus:ring-1 focus:ring-sky-500"
-              />
-            </div>
-            <div>
-              <label className="block text-slate-400 font-bold mb-1.5">Thời điểm (Tháng/Năm)</label>
-              <input 
-                type="text" 
-                value={date} 
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full p-2.5 rounded-xl border border-slate-700 bg-slate-950 text-white focus:outline-none focus:ring-1 focus:ring-sky-500"
-              />
-            </div>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Left Sidebar: Theme List */}
+        <div className="lg:col-span-4 bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3 flex flex-col h-[520px]">
+          <h4 className="font-extrabold text-xs text-slate-400 uppercase tracking-wider">Danh sách chủ điểm</h4>
+          <div className="space-y-2 overflow-y-auto flex-1 pr-1">
+            {themes.map((t) => {
+              const isActive = t.Theme_ID === theme.Theme_ID;
+              const isSelected = !isAddingNew && t.Theme_ID === selectedTheme.Theme_ID;
+              return (
+                <div
+                  key={t.Theme_ID}
+                  onClick={() => {
+                    setIsAddingNew(false);
+                    setSelectedTheme(t);
+                  }}
+                  className={`p-3 rounded-xl border text-left cursor-pointer transition duration-150 ${
+                    isSelected
+                      ? 'bg-sky-500/10 border-sky-500 text-white'
+                      : 'bg-slate-950/60 border-slate-800 hover:bg-slate-950 hover:border-slate-700 text-slate-300'
+                  }`}
+                >
+                  <div className="flex justify-between items-start gap-2">
+                    <span className="font-bold text-xs truncate max-w-[150px]">{t.Title}</span>
+                    <span className="text-[10px] text-slate-500 font-mono shrink-0">{t.Month_Year}</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 line-clamp-1 mt-1">{t.Description}</p>
+                  
+                  <div className="flex justify-between items-center mt-2.5">
+                    <span className="text-[9px] text-slate-500 font-mono">ID: {t.Theme_ID}</span>
+                    {isActive ? (
+                      <span className="text-[9px] bg-sky-500/20 text-sky-400 border border-sky-500/30 px-1.5 py-0.5 rounded font-bold">
+                        🌟 Đang áp dụng
+                      </span>
+                    ) : (
+                      <span className="text-[9px] text-slate-500 font-medium bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800">Lưu trữ</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
+        </div>
 
-          <div>
-            <label className="block text-slate-400 font-bold mb-1.5">Địa chỉ Banner URL</label>
-            <input 
-              type="text" 
-              value={banner} 
-              onChange={(e) => setBanner(e.target.value)}
-              className="w-full p-2.5 rounded-xl border border-slate-700 bg-slate-950 text-white focus:outline-none focus:ring-1 focus:ring-sky-500"
-            />
-          </div>
+        {/* Right Section: Details & Configuration Form */}
+        <div className="lg:col-span-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+          <form onSubmit={handleFormSubmit} className="md:col-span-2 bg-slate-900 p-5 border border-slate-800 rounded-2xl space-y-4 text-xs">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+              <h4 className="font-extrabold text-xs text-sky-400 uppercase">
+                {isAddingNew ? '✨ Thêm chủ điểm mới' : '✏️ Chỉnh sửa chi tiết'}
+              </h4>
+              {!isAddingNew && selectedTheme.Theme_ID !== theme.Theme_ID && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSetActiveTheme(selectedTheme);
+                  }}
+                  className="bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold px-3 py-1 rounded-lg text-[10px] transition"
+                >
+                  Áp dụng cho tháng này
+                </button>
+              )}
+            </div>
 
-          <div>
-            <label className="block text-slate-400 font-bold mb-1.5">Mô tả sự kiện chi tiết</label>
-            <textarea 
-              rows={3} 
-              value={desc} 
-              onChange={(e) => setDesc(e.target.value)}
-              className="w-full p-2.5 rounded-xl border border-slate-700 bg-slate-950 text-white focus:outline-none focus:ring-1 focus:ring-sky-500 leading-relaxed"
-            />
-          </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-slate-400 font-bold mb-1.5">Tên chủ điểm sự kiện</label>
+                <input 
+                  type="text" 
+                  value={title} 
+                  required
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="w-full p-2.5 rounded-xl border border-slate-700 bg-slate-950 text-white focus:outline-none focus:ring-1 focus:ring-sky-500"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-400 font-bold mb-1.5">Thời điểm (Tháng/Năm)</label>
+                <input 
+                  type="text" 
+                  value={date} 
+                  required
+                  onChange={(e) => setDate(e.target.value)}
+                  className="w-full p-2.5 rounded-xl border border-slate-700 bg-slate-950 text-white focus:outline-none focus:ring-1 focus:ring-sky-500"
+                />
+              </div>
+            </div>
 
-          <hr className="border-slate-800 my-4" />
-          <h4 className="font-extrabold text-xs text-sky-400">Nội dung học liệu đính kèm</h4>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label className="block text-slate-400 font-bold mb-1.5">Podcast Title</label>
-              <input 
-                type="text" 
-                value={podcast} 
-                onChange={(e) => setPodcast(e.target.value)}
-                className="w-full p-2 rounded-xl border border-slate-700 bg-slate-950 text-white text-xs focus:outline-none focus:ring-1 focus:ring-sky-500"
-              />
+              <label className="block text-slate-400 font-bold mb-1.5">Địa chỉ Banner URL hoặc Tải lên ảnh</label>
+              <div className="flex gap-2">
+                <input 
+                  type="text" 
+                  value={banner} 
+                  onChange={(e) => setBanner(e.target.value)}
+                  placeholder="Nhập link ảnh (URL) hoặc tải ảnh lên bên cạnh"
+                  className="flex-grow p-2.5 rounded-xl border border-slate-700 bg-slate-950 text-white focus:outline-none focus:ring-1 focus:ring-sky-500 text-xs"
+                />
+                <label className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold px-4 py-2.5 rounded-xl cursor-pointer flex items-center gap-1.5 shrink-0 select-none transition text-xs">
+                  <Upload className="w-3.5 h-3.5 text-sky-400" />
+                  <span>Tải ảnh lên</span>
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    className="hidden" 
+                    onChange={handleBannerUpload}
+                  />
+                </label>
+              </div>
             </div>
-            <div>
-              <label className="block text-slate-400 font-bold mb-1.5">Video Title</label>
-              <input 
-                type="text" 
-                value={video} 
-                onChange={(e) => setVideo(e.target.value)}
-                className="w-full p-2 rounded-xl border border-slate-700 bg-slate-950 text-white text-xs focus:outline-none focus:ring-1 focus:ring-sky-500"
-              />
-            </div>
-            <div>
-              <label className="block text-slate-400 font-bold mb-1.5">Mini-Game Title</label>
-              <input 
-                type="text" 
-                value={minigame} 
-                onChange={(e) => setMinigame(e.target.value)}
-                className="w-full p-2 rounded-xl border border-slate-700 bg-slate-950 text-white text-xs focus:outline-none focus:ring-1 focus:ring-sky-500"
-              />
-            </div>
-          </div>
 
-          <button 
-            type="submit"
-            className="bg-sky-500 hover:bg-sky-400 text-slate-950 font-extrabold px-5 py-2.5 rounded-xl text-xs transition duration-200"
-          >
-            Lưu Cấu Hình Chủ Điểm
-          </button>
-        </form>
-
-        {/* Live Card Preview */}
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between">
-          <div className="space-y-3">
-            <h4 className="font-bold text-[10px] uppercase tracking-wider text-slate-400">Xem trước Banner</h4>
-            <div className="relative rounded-xl overflow-hidden border border-slate-800">
-              <img 
-                src={banner} 
-                onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1000'; }} 
-                className="w-full h-36 object-cover" 
-                alt="Preview" 
+            <div>
+              <label className="block text-slate-400 font-bold mb-1.5">Mô tả sự kiện chi tiết</label>
+              <textarea 
+                rows={3} 
+                value={desc} 
+                onChange={(e) => setDesc(e.target.value)}
+                className="w-full p-2.5 rounded-xl border border-slate-700 bg-slate-950 text-white focus:outline-none focus:ring-1 focus:ring-sky-500 leading-relaxed"
               />
-              <div className="absolute inset-0 bg-black/40"></div>
             </div>
-            <h5 className="font-black text-sm text-sky-400 mt-2">{title}</h5>
-            <p className="text-[11px] text-slate-400 leading-relaxed line-clamp-3">{desc}</p>
-          </div>
-          <div className="text-[10px] text-slate-500 bg-slate-950 p-2.5 rounded-xl border border-slate-800 font-mono mt-4 leading-relaxed">
-            TABLE: Monthly_Themes <br />ID: {theme.Theme_ID} <br />MONTH_YEAR: {date}
+
+            <hr className="border-slate-800 my-4" />
+            <h4 className="font-extrabold text-xs text-sky-400">Nội dung học liệu đính kèm</h4>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-slate-400 font-bold mb-1.5">Podcast Title</label>
+                <input 
+                  type="text" 
+                  value={podcast} 
+                  onChange={(e) => setPodcast(e.target.value)}
+                  className="w-full p-2 rounded-xl border border-slate-700 bg-slate-950 text-white text-xs focus:outline-none focus:ring-1 focus:ring-sky-500"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-400 font-bold mb-1.5">Video Title</label>
+                <input 
+                  type="text" 
+                  value={video} 
+                  onChange={(e) => setVideo(e.target.value)}
+                  className="w-full p-2 rounded-xl border border-slate-700 bg-slate-950 text-white text-xs focus:outline-none focus:ring-1 focus:ring-sky-500"
+                />
+              </div>
+              <div>
+                <label className="block text-slate-400 font-bold mb-1.5">Mini-Game Title</label>
+                <input 
+                  type="text" 
+                  value={minigame} 
+                  onChange={(e) => setMinigame(e.target.value)}
+                  className="w-full p-2 rounded-xl border border-slate-700 bg-slate-950 text-white text-xs focus:outline-none focus:ring-1 focus:ring-sky-500"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button 
+                type="submit"
+                className={`${
+                  isAddingNew ? 'bg-emerald-500 hover:bg-emerald-400' : 'bg-sky-500 hover:bg-sky-400'
+                } text-slate-950 font-extrabold px-5 py-2.5 rounded-xl text-xs transition duration-200`}
+              >
+                {isAddingNew ? 'Tạo Chủ Điểm Mới' : 'Lưu Cấu Hình'}
+              </button>
+              {isAddingNew && (
+                <button
+                  type="button"
+                  onClick={() => setIsAddingNew(false)}
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold px-4 py-2.5 rounded-xl text-xs transition duration-200"
+                >
+                  Hủy bỏ
+                </button>
+              )}
+            </div>
+          </form>
+
+          {/* Live Card Preview */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between h-full">
+            <div className="space-y-3">
+              <h4 className="font-bold text-[10px] uppercase tracking-wider text-slate-400">Xem trước Banner</h4>
+              <div className="relative rounded-xl overflow-hidden border border-slate-800 bg-slate-950">
+                <img 
+                  src={banner} 
+                  onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1000'; }} 
+                  className="w-full h-36 object-cover" 
+                  alt="Preview" 
+                />
+                <div className="absolute inset-0 bg-black/40"></div>
+              </div>
+              <h5 className="font-black text-sm text-sky-400 mt-2">{title}</h5>
+              <p className="text-[11px] text-slate-400 leading-relaxed line-clamp-4">{desc}</p>
+            </div>
+            <div className="text-[10px] text-slate-500 bg-slate-950 p-2.5 rounded-xl border border-slate-800 font-mono mt-4 leading-relaxed shrink-0">
+              TABLE: Monthly_Themes <br />
+              ID: {isAddingNew ? 'Tự động tăng' : selectedTheme.Theme_ID} <br />
+              MONTH_YEAR: {date}
+            </div>
           </div>
         </div>
       </div>

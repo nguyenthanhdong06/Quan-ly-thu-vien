@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 
 import { 
-  INITIAL_USERS, INITIAL_BOOKS, INITIAL_THEME, INITIAL_INTERACTIONS, INITIAL_CHALLENGES, INITIAL_BADGES, QUIZ_QUESTIONS 
+  INITIAL_USERS, INITIAL_BOOKS, INITIAL_THEME, INITIAL_THEMES, INITIAL_INTERACTIONS, INITIAL_CHALLENGES, INITIAL_BADGES, QUIZ_QUESTIONS 
 } from './data';
 import { User as UserType, Book, MonthlyTheme, UserBookInteraction, Challenge, Badge, LogEntry } from './types';
 import { executeVirtualSQL } from './sqlEngine';
@@ -174,6 +174,11 @@ export default function App() {
     return saved ? JSON.parse(saved) : INITIAL_THEME;
   });
 
+  const [themes, setThemes] = useState<MonthlyTheme[]>(() => {
+    const saved = localStorage.getItem('db_themes');
+    return saved ? JSON.parse(saved) : INITIAL_THEMES;
+  });
+
   const [interactions, setInteractions] = useState<UserBookInteraction[]>(() => {
     const saved = localStorage.getItem('db_interactions');
     return saved ? JSON.parse(saved) : INITIAL_INTERACTIONS;
@@ -232,6 +237,7 @@ export default function App() {
   const [editBookGrade, setEditBookGrade] = useState('Lớp 4-5');
   const [editBookType, setEditBookType] = useState<'Ebook' | 'Audio'>('Ebook');
   const [editBookCover, setEditBookCover] = useState('');
+  const [editBookTheme, setEditBookTheme] = useState('Đại Dương');
 
   const [editStudentName, setEditStudentName] = useState('');
   const [editStudentClass, setEditStudentClass] = useState('');
@@ -253,6 +259,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('db_theme', JSON.stringify(theme));
   }, [theme]);
+
+  useEffect(() => {
+    localStorage.setItem('db_themes', JSON.stringify(themes));
+  }, [themes]);
 
   useEffect(() => {
     localStorage.setItem('db_interactions', JSON.stringify(interactions));
@@ -321,7 +331,10 @@ export default function App() {
       // If data is present in Supabase, update our React states!
       if (dbUsers && dbUsers.length > 0) setUsers(dbUsers);
       if (dbBooks && dbBooks.length > 0) setBooks(dbBooks);
-      if (dbThemes && dbThemes.length > 0) setTheme(dbThemes[0]);
+      if (dbThemes && dbThemes.length > 0) {
+        setTheme(dbThemes[0]);
+        setThemes(dbThemes);
+      }
       if (dbInteractions) setInteractions(dbInteractions);
       if (dbChallenges && dbChallenges.length > 0) setChallenges(dbChallenges);
       if (dbBadges && dbBadges.length > 0) setBadges(dbBadges);
@@ -869,13 +882,14 @@ export default function App() {
       Target_Grade: editBookGrade,
       Book_Type: editBookType,
       Cover_Image: editBookCover || 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=400',
-      Content_URL: '#'
+      Content_URL: '#',
+      Theme: editBookTheme
     };
 
     setBooks([...books, newBook]);
     playChimeSound('success');
     triggerToast('Thêm sách mới thành công!');
-    logTransaction(`INSERT INTO Books VALUES (${newId}, '${editBookTitle}', '${editBookAuthor}', '${editBookCategory}', '${editBookType}');`, 'insert');
+    logTransaction(`INSERT INTO Books VALUES (${newId}, '${editBookTitle}', '${editBookAuthor}', '${editBookCategory}', '${editBookType}', '${editBookTheme}');`, 'insert');
     setModalType(null);
 
     await dbUpsert('books', newBook);
@@ -889,6 +903,7 @@ export default function App() {
     setEditBookGrade(book.Target_Grade);
     setEditBookType(book.Book_Type);
     setEditBookCover(book.Cover_Image);
+    setEditBookTheme(book.Theme || 'Đại Dương Xanh Kỳ Thú');
     setModalType('edit_book');
   };
 
@@ -903,7 +918,8 @@ export default function App() {
           Category: editBookCategory, 
           Target_Grade: editBookGrade, 
           Book_Type: editBookType, 
-          Cover_Image: editBookCover 
+          Cover_Image: editBookCover,
+          Theme: editBookTheme
         };
         return bookToUpdate;
       }
@@ -912,7 +928,7 @@ export default function App() {
     setBooks(updatedBooks);
     playChimeSound('success');
     triggerToast('Cập nhật đầu sách thành công!');
-    logTransaction(`UPDATE Books SET Title = '${editBookTitle}', Author = '${editBookAuthor}' WHERE Book_ID = ${activeModalData};`, 'update');
+    logTransaction(`UPDATE Books SET Title = '${editBookTitle}', Author = '${editBookAuthor}', Theme = '${editBookTheme}' WHERE Book_ID = ${activeModalData};`, 'update');
     setModalType(null);
 
     if (bookToUpdate) {
@@ -1051,11 +1067,28 @@ export default function App() {
 
   const handleSaveThemeSettings = async (updatedTheme: MonthlyTheme) => {
     setTheme(updatedTheme);
+    setThemes(prev => prev.map(t => t.Theme_ID === updatedTheme.Theme_ID ? updatedTheme : t));
     playChimeSound('success');
-    triggerToast('Đã cập nhật cấu hình chủ điểm sự kiện tháng!');
+    triggerToast('Đã cập nhật cấu hình chủ điểm!');
     logTransaction(`UPDATE Monthly_Themes SET Title = '${updatedTheme.Title}', Month_Year = '${updatedTheme.Month_Year}' WHERE Theme_ID = ${updatedTheme.Theme_ID};`, 'update');
 
     await dbUpsert('monthly_themes', updatedTheme);
+  };
+
+  const handleSetActiveTheme = async (activeTheme: MonthlyTheme) => {
+    setTheme(activeTheme);
+    playChimeSound('success');
+    triggerToast(`Đã đổi chủ điểm hoạt động tháng sang: ${activeTheme.Title}`);
+    logTransaction(`-- Thiết lập chủ điểm hoạt động hiện tại: ${activeTheme.Title} (ID: ${activeTheme.Theme_ID})`, 'update');
+  };
+
+  const handleAddNewTheme = async (newTheme: MonthlyTheme) => {
+    setThemes(prev => [...prev, newTheme]);
+    playChimeSound('success');
+    triggerToast(`Đã thêm thành công chủ điểm mới: ${newTheme.Title}`);
+    logTransaction(`INSERT INTO Monthly_Themes ("Theme_ID", "Month_Year", "Title", "Banner_Image", "Description") VALUES (${newTheme.Theme_ID}, '${newTheme.Month_Year}', '${newTheme.Title}', '${newTheme.Banner_Image}', '${newTheme.Description}');`, 'insert');
+
+    await dbUpsert('monthly_themes', newTheme);
   };
 
   const handleIncrementChallenge = async (challengeId: number) => {
@@ -1528,7 +1561,10 @@ export default function App() {
                 <div className="space-y-6">
                   {/* High Fidelity Theme Banner */}
                   <div className="relative rounded-3xl overflow-hidden p-6 sm:p-8 text-white shadow-xl bg-gradient-to-r from-sky-800 to-indigo-900 border border-sky-700/30">
-                    <div className="absolute right-0 top-0 bottom-0 w-1/2 opacity-25 bg-[url('https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=600')] bg-cover bg-center"></div>
+                    <div 
+                      className="absolute right-0 top-0 bottom-0 w-1/2 opacity-30 bg-cover bg-center transition-all duration-500" 
+                      style={{ backgroundImage: `url(${theme.Banner_Image || 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=600'})` }}
+                    ></div>
                     <div className="relative z-10 max-w-xl space-y-3">
                       <span className="bg-sky-400 text-slate-950 text-[10px] font-extrabold px-3 py-1 rounded-full uppercase tracking-widest">Sự Kiện Chủ Điểm Tháng</span>
                       <h2 className="text-2xl sm:text-3xl font-black tracking-tight">{theme.Title}</h2>
@@ -1638,12 +1674,24 @@ export default function App() {
                         📖 Tủ Sách Chủ Điểm
                       </h3>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        {books.filter(b => b.Category === 'Khoa học').map(book => (
+                        {books.filter(b => {
+                          if (!b.Theme) {
+                            return theme.Title === 'Đại Dương Xanh Kỳ Thú' && b.Category === 'Khoa học';
+                          }
+                          const tTitle = (theme.Title || '').toLowerCase();
+                          const bTheme = b.Theme.toLowerCase();
+                          return tTitle.includes(bTheme) || bTheme.includes(tTitle);
+                        }).map(book => (
                           <div key={book.Book_ID} className="bg-slate-50 p-3 rounded-2xl border border-slate-100/60 text-center flex flex-col justify-between">
                             <img src={book.Cover_Image} className="w-full h-32 object-cover rounded-xl shadow-sm border border-slate-200" alt="book" />
                             <div className="mt-3 space-y-1.5">
                               <h4 className="font-extrabold text-xs text-slate-800 line-clamp-1">{book.Title}</h4>
                               <p className="text-[10px] text-slate-400 font-medium">{book.Author}</p>
+                              {book.Theme && (
+                                <div className="text-[9px] text-sky-600 font-bold bg-sky-50 px-2 py-0.5 rounded-md inline-block max-w-full truncate">
+                                  🌊 {book.Theme}
+                                </div>
+                              )}
                               <button 
                                 onClick={() => handleOpenReadBook(book.Book_ID)}
                                 className="w-full bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold py-1.5 rounded-xl text-xs transition"
@@ -1853,7 +1901,13 @@ export default function App() {
                                   <span className="text-[9px] text-slate-400 font-bold">{book.Target_Grade}</span>
                                 </div>
                                 <h4 className="font-extrabold text-xs text-slate-800 line-clamp-1" title={book.Title}>{book.Title}</h4>
-                                <p className="text-[10px] text-slate-400 font-medium mb-3">{book.Author}</p>
+                                <p className="text-[10px] text-slate-400 font-medium mb-1">{book.Author}</p>
+                                
+                                {book.Theme && (
+                                  <div className="text-[9px] text-sky-600 font-bold bg-sky-50 px-2 py-0.5 rounded-md inline-block max-w-full truncate mb-2">
+                                    🌊 {book.Theme}
+                                  </div>
+                                )}
                                 
                                 <button 
                                   onClick={() => handleOpenReadBook(book.Book_ID)}
@@ -2145,6 +2199,7 @@ export default function App() {
                     setEditBookGrade('Lớp 4-5');
                     setEditBookType('Ebook');
                     setEditBookCover('');
+                    setEditBookTheme('Đại Dương');
                     setModalType('add_book');
                   }}
                   onEditBook={handleEditBookInit}
@@ -2155,7 +2210,10 @@ export default function App() {
               {activeTab === 'admin-theme' && (
                 <AdminThemeView 
                   theme={theme}
+                  themes={themes}
                   onSaveTheme={handleSaveThemeSettings}
+                  onSetActiveTheme={handleSetActiveTheme}
+                  onAddTheme={handleAddNewTheme}
                 />
               )}
 
@@ -2658,6 +2716,29 @@ export default function App() {
                     />
                   </div>
                 </div>
+
+                <div>
+                  <label className="block text-slate-400 font-bold mb-1">Chủ điểm sự kiện / chủ đề sách</label>
+                  <select 
+                    value={editBookTheme}
+                    onChange={(e) => setEditBookTheme(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-slate-700 bg-slate-950 text-white focus:outline-none"
+                  >
+                    {theme?.Title && (
+                      <option value={theme.Title}>🌊 Sự kiện tháng: {theme.Title}</option>
+                    )}
+                    {themes.map(t => (
+                      <option key={t.Theme_ID} value={t.Title}>📌 {t.Title}</option>
+                    ))}
+                    <option value="Đại Dương">🌊 Đại Dương</option>
+                    <option value="Vũ Trụ">🚀 Vũ Trụ</option>
+                    <option value="Môi Trường">🌱 Môi Trường</option>
+                    <option value="Kính Trọng Thầy Cô">👩‍🏫 Kính Trọng Thầy Cô</option>
+                    <option value="Biển Đảo Quê Hương">🇻🇳 Biển Đảo Quê Hương</option>
+                    <option value="Tình Bạn Tuổi Học Trò">🤝 Tình Bạn Tuổi Học Trò</option>
+                    <option value="Sách thường">Sách thường (Không thuộc chủ điểm đặc biệt)</option>
+                  </select>
+                </div>
               </div>
 
               <div className="flex gap-2 pt-2 text-xs">
@@ -2726,7 +2807,7 @@ export default function App() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-slate-400 font-bold mb-1">Khối lớp</label>
+                    <label className="block text-slate-400 font-bold mb-1">Khối lớp nhắm tới</label>
                     <select 
                       value={editBookGrade}
                       onChange={(e) => setEditBookGrade(e.target.value)}
@@ -2746,6 +2827,29 @@ export default function App() {
                       className="w-full p-2.5 rounded-xl border border-slate-700 bg-slate-950 text-white" 
                     />
                   </div>
+                </div>
+
+                <div>
+                  <label className="block text-slate-400 font-bold mb-1">Chủ điểm sự kiện / chủ đề sách</label>
+                  <select 
+                    value={editBookTheme}
+                    onChange={(e) => setEditBookTheme(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-slate-700 bg-slate-950 text-white focus:outline-none"
+                  >
+                    {theme?.Title && (
+                      <option value={theme.Title}>🌊 Sự kiện tháng: {theme.Title}</option>
+                    )}
+                    {themes.map(t => (
+                      <option key={t.Theme_ID} value={t.Title}>📌 {t.Title}</option>
+                    ))}
+                    <option value="Đại Dương">🌊 Đại Dương</option>
+                    <option value="Vũ Trụ">🚀 Vũ Trụ</option>
+                    <option value="Môi Trường">🌱 Môi Trường</option>
+                    <option value="Kính Trọng Thầy Cô">👩‍🏫 Kính Trọng Thầy Cô</option>
+                    <option value="Biển Đảo Quê Hương">🇻🇳 Biển Đảo Quê Hương</option>
+                    <option value="Tình Bạn Tuổi Học Trò">🤝 Tình Bạn Tuổi Học Trò</option>
+                    <option value="Sách thường">Sách thường (Không thuộc chủ điểm đặc biệt)</option>
+                  </select>
                 </div>
               </div>
 
